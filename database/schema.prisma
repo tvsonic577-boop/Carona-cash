@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TipoUsuario {
+  CLIENTE
+  MOTORISTA
+  ADMINISTRADOR
+}
+
+enum StatusUsuario {
+  PENDENTE_APROVACAO
+  AGUARDANDO_PAGAMENTO
+  ATIVO
+  BLOQUEADO
+}
+
+enum StatusAprovacaoMotorista {
+  PENDENTE
+  APROVADO
+  REPROVADO
+}
+
+enum StatusCorrida {
+  SOLICITADA
+  MOTORISTA_A_CAMINHO
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PAGO
+  REPROVADO
+}
+
+model User {
+  id        String        @id @default(uuid())
+  nome      String
+  email     String        @unique
+  senha     String
+  telefone  String
+  tipo      TipoUsuario   @default(CLIENTE)
+  status    StatusUsuario @default(PENDENTE_APROVACAO)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  cliente    Cliente?
+  motorista  Motorista?
+  documentos Documentos[]
+}
+
+model Cliente {
+  id       String @id @default(uuid())
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String @unique
+  cpf      String @unique
+  endereco String
+  cidade   String
+
+  corridas Corridas[]
+}
+
+model Motorista {
+  id               String                   @id @default(uuid())
+  user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String                   @unique
+  cpf              String                   @unique
+  cnh              String
+  endereco         String
+  cidade           String
+  status_aprovacao StatusAprovacaoMotorista @default(PENDENTE)
+  mensalidadePaga  Boolean                  @default(false)
+
+  veiculo  Veiculo?
+  corridas Corridas[]
+}
+
+model Veiculo {
+  id          String    @id @default(uuid())
+  motorista   Motorista @relation(fields: [motoristaId], references: [id], onDelete: Cascade)
+  motoristaId String    @unique
+  marca       String
+  modelo      String
+  ano         Int
+  placa       String    @unique
+  cor         String
+}
+
+model Documentos {
+  id        String   @id @default(uuid())
+  usuario   User     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuarioId String
+  tipo      String // e.g., 'CNH_FRENTE', 'COMPROVANTE_ENDERECO', 'VEICULO_FRENTE'
+  arquivo   String // Caminho ou URL do arquivo enviado
+  createdAt DateTime @default(now())
+}
+
+model Corridas {
+  id          String        @id @default(uuid())
+  cliente     Cliente       @relation(fields: [clienteId], references: [id])
+  clienteId   String
+  motorista   Motorista?    @relation(fields: [motoristaId], references: [id])
+  motoristaId String?
+  origem      String
+  destino     String
+  latitude    Float // Latitude do destino (ou atual de busca)
+  longitude   Float // Longitude do destino (ou atual de busca)
+  valor       Float // Valor mínimo de R$ 7,00
+  status      StatusCorrida @default(SOLICITADA)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  pagamentos Pagamentos[]
+}
+
+model Pagamentos {
+  id        String          @id @default(uuid())
+  corrida   Corridas        @relation(fields: [corridaId], references: [id], onDelete: Cascade)
+  corridaId String
+  valor     Float
+  status    StatusPagamento @default(PENDENTE)
+  createdAt DateTime        @default(now())
+}
