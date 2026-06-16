@@ -17,13 +17,13 @@ export const INITIAL_CIDADES: CidadeAtendida[] = [
 export const INITIAL_USERS: User[] = [
   {
     id: 'u-admin',
-    nome: 'Dono Carona Cash',
-    email: 'admin@caronacash.com.br',
+    nome: 'Carlos Oliveira',
+    email: 'tvsonic577@gmail.com',
     telefone: '(11) 99999-1000',
     tipo: 'ADMINISTRADOR',
     status: 'ATIVO',
     createdAt: '2026-01-01T12:00:00.000Z',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
   },
   {
     id: 'u-cli-1',

@@ -829,6 +829,7 @@ export default function App() {
   };
 
   // Helper calculation formulas for metrics dashboard
+  const adminUser = users.find(u => u.tipo === 'ADMINISTRADOR' && u.email.toLowerCase() === loggedInEmail.toLowerCase()) || users.find(u => u.tipo === 'ADMINISTRADOR');
   const totalCompletedRides = corridas.filter(c => c.status === 'CONCLUIDA');
   const totalVolumeGross = totalCompletedRides.reduce((sum, item) => sum + item.valor, 0);
   const totalPlatformComission = totalVolumeGross * (config.comissaoPercentual / 100);
@@ -1534,7 +1535,7 @@ export default function App() {
                 } else if (activePortal === 'ADMIN') {
                   return (
                     <>
-                      <p className="text-xs font-semibold text-slate-800 leading-none">Carlos Oliveira</p>
+                      <p className="text-xs font-semibold text-slate-800 leading-none">{adminUser?.nome || "Carlos Oliveira"}</p>
                       <p className="text-[10px] text-emerald-600 font-bold mt-1 uppercase tracking-wider">Dono da Plataforma</p>
                     </>
                   );
@@ -1556,6 +1557,8 @@ export default function App() {
                 else if (activePortal === 'FRANQUIA') {
                   const fran = franqueados.find(f => f.id === activeFranqueadoId);
                   seed = fran?.nome || "Franqueado";
+                } else if (activePortal === 'ADMIN') {
+                  seed = adminUser?.nome || "Carlos";
                 }
                 return (
                   <img
@@ -3700,7 +3703,7 @@ export default function App() {
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
               <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
                 <UserCheck size={18} className="text-emerald-700" />
-                Dono Carona Cash: Aprovação de Motoristas e Auditoria de Documentos
+                {adminUser?.nome || "Dono da Plataforma"}: Aprovação de Motoristas e Auditoria de Documentos
               </h3>
 
               <div className="overflow-x-auto">
@@ -4252,7 +4255,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 4. EXPLANATIVE CODE & HOSTINGER GUIDE TAB */}
+        {/* 5. EXPLANATIVE CODE & HOSTINGER GUIDE TAB */}
         {activePortal === 'CODE' && (
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-6" id="code-instructions-tab">
             <div className="border-b pb-4">
@@ -4273,10 +4276,10 @@ export default function App() {
                   Os seguintes arquivos foram inicializados no seu workspace para exportar com total fidelidade:
                 </p>
                 <ul className="text-xs space-y-2 text-slate-600 bg-slate-50 p-4 rounded-xl border font-mono">
-                  <li>🟢 <strong>/database/schema.prisma</strong>: Modelagem de tabelas PostgreSQL completas (Users, Cliente, Motorista, Veiculo, Corridas, Pagamentos, Documentos)</li>
-                  <li>🟢 <strong>/backend/index.js</strong>: Servidor Express API Rest integral estruturado, autenticação JWT, Multer uploads e Socket.IO real-time</li>
-                  <li>🟢 <strong>/backend/package.json</strong>: Gerenciamento de dependências prontas de produção</li>
-                  <li>🟢 <strong>/README_HOSTINGER.md</strong>: Guia passo a passo explicativo de instalação local e implantação no hPanel da Hostinger</li>
+                  <li>🟢 <strong>/database/schema.prisma</strong>: Modelagem de tabelas PostgreSQL completas (Users, Cliente, Motorista, Veiculo, Corridas, Pagamentos, Documentos) com suporte nativo ao Dono e Franqueados.</li>
+                  <li>🟢 <strong>/backend/index.js</strong>: Servidor Express API Rest integral estruturado, autenticação baseada em JWT com regras de acesso por tipo de conta, Multer uploads de documentos de motoristas e Socket.IO real-time para simulações dinâmicas de trajeto.</li>
+                  <li>🟢 <strong>/backend/package.json</strong>: Gerenciamento de dependências prontas de produção para execução limpa nos servidores Linux.</li>
+                  <li>🟢 <strong>/README_HOSTINGER.md</strong>: Guia passo a passo explicativo de instalação local e implantação no hPanel da Hostinger.</li>
                 </ul>
 
                 <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100/50">
@@ -4285,10 +4288,11 @@ export default function App() {
                     Tecnologias do Sistema:
                   </h4>
                   <ul className="text-xs text-emerald-900 list-disc list-inside mt-1.5 space-y-1">
-                    <li>Prisma ORM e driver pg para PostgreSQL</li>
-                    <li>JWT com hash de senha seguro no cadastro</li>
-                    <li>Sinal dinâmico de localização via Socket.IO</li>
-                    <li>API de mapas encapsulada flexível (Google Maps / OpenStreetMap)</li>
+                    <li>Prisma ORM e driver pg para PostgreSQL de alta concorrência.</li>
+                    <li>JWT com hash de senha seguro no cadastro e autenticação silenciosa automática.</li>
+                    <li>Sinal de GPS e localização simulado de forma iterativa via vetor SVG em tempo real.</li>
+                    <li>Modulo de intermediação financeira com taxas de comissão operacional inteligentes escalando de 1% a 20%.</li>
+                    <li>Auto-detecção de administrador central (Dono da Plataforma) no login por endereço de email seguro.</li>
                   </ul>
                 </div>
               </div>
@@ -4296,23 +4300,23 @@ export default function App() {
               <div className="space-y-4">
                 <h3 className="font-bold text-sm text-slate-800">🚀 RESUMO DAS OPERAÇÕES DO PROTÓTIPO</h3>
                 <p className="text-xs text-slate-600">
-                  Utilize a barra de controle de simulação superior para alternar facilmente entre os 3 papéis e testar a sincronização:
+                  Utilize as opções refinadas de simulação e login seguro para alternar e testar todas as funcionalidades do ecossistema:
                 </p>
                 
                 <div className="space-y-2 text-xs">
                   <div className="p-3 border rounded-lg bg-zinc-50">
-                    <strong className="block text-emerald-800">1. Cadastro e Documentos de Motoristas:</strong>
-                    Cadastre um motorista novo com ano superior a 2010. O motorista cairá em estado pendente. Vá ao painel Administrativo do Dono para aprovar os documentos.
+                    <strong className="block text-emerald-800">1. Acesso Central e Perfil "Dono da Plataforma":</strong>
+                    A opção explícita "Admin Central" foi removida da tela de login por questões de segurança de marca. O sistema agora autodetecta o Proprietário/Dono (Carlos Oliveira) quando ele efetua login com o e-mail cadastrado <span className="font-mono text-emerald-950 font-bold bg-emerald-100/50 px-1 rounded">tvsonic577@gmail.com</span> e senha <span className="font-mono text-emerald-950 font-bold bg-emerald-100/50 px-1 rounded">Jr990387</span>. Todas as interfaces e títulos atualizam o nome em tempo real!
                   </div>
 
                   <div className="p-3 border rounded-lg bg-zinc-50">
-                    <strong className="block text-emerald-800">2. Taxa de Inscrição PIX:</strong>
-                    Após os documentos serem aprovados pelo admin, o motorista precisa acessar o painel e realizar a transação Pix simulada integrada para ativar sua licença e liberar corridas.
+                    <strong className="block text-emerald-800">2. Comissão Operacional do Dono (1% a 20%):</strong>
+                    O Administrador Central pode ajustar remotamente as tarifas de intermediação usando o novo slider de comissão calibrado com o mínimo de 1% e o máximo saudável de 20%. Isso altera instantaneamente o repasse financeiro simulado de todas as corridas em andamento.
                   </div>
 
                   <div className="p-3 border rounded-lg bg-zinc-50">
-                    <strong className="block text-emerald-800">3. Solicitação GPS e rotas de R$ 7,00:</strong>
-                    Escolha locais populares no painel do cliente e veja o preço adaptado com as regras do administrador (limite protetivo de R$ 7,00 mínimo respeitado). O motorista recebe notificações e o trajeto em tempo real é atualizado via simulação interativa com SVG no mapa!
+                    <strong className="block text-emerald-800">3. Fluxo de Documentações e Ativação Pix:</strong>
+                    Motoristas recém-cadastrados entram com status pendente de auditoria de veículo. O Dono da Plataforma aprova os documentos e o motorista faz a simulação do QR Code Pix de ativação mensal com base no valor programado nas configurações centrais.
                   </div>
                 </div>
               </div>
