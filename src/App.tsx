@@ -30,7 +30,8 @@ import {
   CheckCircle2,
   Trash2,
   AlertCircle,
-  MessageCircle
+  MessageCircle,
+  UserPlus
 } from 'lucide-react';
 
 import { 
@@ -235,6 +236,16 @@ export default function App() {
     telefone: string;
     cidade: string;
   } | null>(null);
+
+  // --- New Franqueado Creation Form States ---
+  const [newFranNome, setNewFranNome] = useState('');
+  const [newFranEmail, setNewFranEmail] = useState('');
+  const [newFranSenha, setNewFranSenha] = useState('');
+  const [newFranTelefone, setNewFranTelefone] = useState('');
+  const [newFranCidade, setNewFranCidade] = useState('');
+  const [newFranValorFixo, setNewFranValorFixo] = useState(2.00);
+  const [newFranStatus, setNewFranStatus] = useState<'ATIVO' | 'BLOQUEADO'>('ATIVO');
+  const [showNewFranForm, setShowNewFranForm] = useState(false);
   
   // Client Form
   const [newClientData, setNewClientData] = useState({
@@ -404,15 +415,19 @@ export default function App() {
     addNotification("Corrida de transporte finalizada! Obrigado por dirigir com Carona Cash.", "success");
   };
 
-  // Client cancels active request
-  const handleCancelRide = (corridaId: string) => {
+  // Client or driver cancels active request
+  const handleCancelRide = (corridaId: string, canceledBy: 'CLIENTE' | 'MOTORISTA' = 'CLIENTE') => {
     setCorridas(prev => prev.map(c => {
       if (c.id === corridaId) {
         return { ...c, status: 'CANCELADA' };
       }
       return c;
     }));
-    addNotification("Sua corrida foi cancelada.", "warn");
+    if (canceledBy === 'MOTORISTA') {
+      addNotification("A corrida foi cancelada pelo motorista.", "warn");
+    } else {
+      addNotification("Sua corrida foi cancelada.", "warn");
+    }
   };
 
   // --- REGISTRATION FORMS FORM SUBMISSION ---
@@ -1368,7 +1383,19 @@ export default function App() {
             </button>
           )}
 
-
+          {(sessionRole === 'ADMIN' || sessionRole === 'FRANQUIA') && (
+            <button
+              onClick={() => { handleSidebarPortalSwitch('FRANQUIA'); setRegistrationMode('NONE'); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left hover:cursor-pointer ${
+                activePortal === 'FRANQUIA' 
+                  ? 'bg-emerald-800/60 text-emerald-300 border-l-4 border-emerald-500 font-bold' 
+                  : 'text-emerald-100 hover:bg-emerald-900/60'
+              }`}
+            >
+              <Layers size={14} className="shrink-0 text-emerald-400" />
+              <span>4. Central do Franqueado</span>
+            </button>
+          )}
 
           {sessionRole === 'ADMIN' && (
             <button
@@ -2246,12 +2273,14 @@ export default function App() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleCancelRide(currentActiveCorrida.id)}
-                      className="text-xs font-bold text-rose-600 border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-lg hover:cursor-pointer"
-                    >
-                      Cancelar Corrida
-                    </button>
+                    {(currentActiveCorrida.status === 'SOLICITADA' || currentActiveCorrida.status === 'MOTORISTA_A_CAMINHO') && (
+                      <button
+                        onClick={() => handleCancelRide(currentActiveCorrida.id, 'CLIENTE')}
+                        className="text-xs font-bold text-rose-600 border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-lg hover:cursor-pointer"
+                      >
+                        Cancelar Corrida
+                      </button>
+                    )}
                   </div>
 
                   {/* Driver matching details or searching spinner */}
@@ -2530,20 +2559,28 @@ export default function App() {
                             <span className="text-[10px] text-slate-400">Acompanhamento simulado ativo no mapa do portal Cliente.</span>
                           </div>
 
-                          <div className="flex gap-1">
+                          <div className="flex gap-2">
                             {activeSelfCorrida.status === 'MOTORISTA_A_CAMINHO' && (
-                              <button
-                                onClick={() => handleStartTrip(activeSelfCorrida.id)}
-                                className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-bold hover:cursor-pointer"
-                              >
-                                CONFIRMAR EMBARQUE PASSAGEIRO 🟢
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleCancelRide(activeSelfCorrida.id, 'MOTORISTA')}
+                                  className="bg-rose-50 border border-rose-300 hover:bg-rose-100 text-rose-700 px-3 py-2 rounded-lg font-bold hover:cursor-pointer transition-all text-xs"
+                                >
+                                  CANCELAR CORRIDA ❌
+                                </button>
+                                <button
+                                  onClick={() => handleStartTrip(activeSelfCorrida.id)}
+                                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-2 rounded-lg font-bold hover:cursor-pointer transition-all text-xs"
+                                >
+                                  CONFIRMAR EMBARQUE PASSAGEIRO 🟢
+                                </button>
+                              </>
                             )}
 
                             {activeSelfCorrida.status === 'EM_ANDAMENTO' && (
                               <button
                                 onClick={() => handleFinishTrip(activeSelfCorrida.id)}
-                                className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-bold hover:cursor-pointer"
+                                className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-bold hover:cursor-pointer transition-all text-xs"
                               >
                                 FINALIZAR CORRIDA E RECEBER R$ 🏁
                               </button>
@@ -3215,7 +3252,7 @@ export default function App() {
             </div>
 
             {/* PLATFORM FRANCHISES DIVISION */}
-            <div className="hidden" id="admin-franchise-management-pane">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4" id="admin-franchise-management-pane">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -3227,34 +3264,215 @@ export default function App() {
                   </p>
                 </div>
                 
-                {/* Botão rápido para simular nova franquia se necessário */}
-                <button
-                  onClick={() => {
-                    const id = 'fr-' + Date.now();
-                    const cidadesSemFranquia = cidades.filter(c => !franqueados.some(f => f.cidade === c.nome));
-                    if (cidadesSemFranquia.length === 0) {
-                      addNotification("Todas as cidades ativas já possuem franquias configuradas!", "warn");
+                <div className="flex gap-2">
+                  {/* Botão para cadastrar franqueado com dados completos */}
+                  <button
+                    onClick={() => setShowNewFranForm(!showNewFranForm)}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm animate-pulse"
+                  >
+                    <UserPlus size={14} /> 
+                    {showNewFranForm ? 'Fechar Form' : 'Adicionar Franqueado Completo'}
+                  </button>
+
+                  {/* Botão rápido de simulação */}
+                  <button
+                    onClick={() => {
+                      const id = 'fr-' + Date.now();
+                      const cidadesSemFranquia = cidades.filter(c => !franqueados.some(f => f.cidade === c.nome));
+                      if (cidadesSemFranquia.length === 0) {
+                        addNotification("Todas as cidades ativas já possuem franquias configuradas!", "warn");
+                        return;
+                      }
+                      const cid = cidadesSemFranquia[0];
+                      const novoEmp: Franqueado = {
+                        id,
+                        nome: `Franqueado ${cid.nome}`,
+                        cidade: cid.nome,
+                        email: `contato@${cid.nome.toLowerCase().replace(/\s/g, '')}carona.com.br`,
+                        telefone: '(11) 9' + Math.floor(10000000 + Math.random() * 90000000),
+                        valorFixoPorCorrida: 2.00,
+                        status: 'ATIVO',
+                        createdAt: new Date().toISOString()
+                      };
+                      setFranqueados(prev => [...prev, novoEmp]);
+                      
+                      // Save default password
+                      setAccountPasswords(prev => ({
+                        ...prev,
+                        [`${novoEmp.email}-FRANQUIA`]: 'senha123'
+                      }));
+
+                      addNotification(`Franquia rápida de ${cid.nome} inicializada com sucesso (Senha padrão: senha123)!`, 'success');
+                    }}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <Plus size={14} /> Rápido ({cidades.filter(c => !franqueados.some(f => f.cidade === c.nome))[0]?.nome || 'Sem Cidades'})
+                  </button>
+                </div>
+              </div>
+
+              {/* COLLAPSIBLE REGISTRATION FORM */}
+              {showNewFranForm && (
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newFranNome.trim() || !newFranEmail.trim() || !newFranSenha.trim() || !newFranTelefone.trim() || !newFranCidade) {
+                      addNotification("Por favor, preencha todos os campos obrigatórios para o franqueado!", "warn");
                       return;
                     }
-                    const cid = cidadesSemFranquia[0];
+                    
+                    // Verify if city already has a franchise
+                    const alreadyExists = franqueados.some(f => f.cidade.toLowerCase() === newFranCidade.toLowerCase());
+                    if (alreadyExists) {
+                      addNotification(`Já existe um franqueado ativo para a cidade de ${newFranCidade}!`, "warn");
+                      return;
+                    }
+
+                    const newId = 'fr-' + Date.now();
                     const novo: Franqueado = {
-                      id,
-                      nome: `Franqueado ${cid.nome}`,
-                      cidade: cid.nome,
-                      email: `contato@${cid.nome.toLowerCase().replace(/\s/g, '')}carona.com.br`,
-                      telefone: '(11) 9' + Math.floor(10000000 + Math.random() * 90000000),
-                      valorFixoPorCorrida: 2.00,
-                      status: 'ATIVO',
+                      id: newId,
+                      nome: newFranNome.trim(),
+                      cidade: newFranCidade,
+                      email: newFranEmail.trim().toLowerCase(),
+                      telefone: newFranTelefone.trim(),
+                      valorFixoPorCorrida: Number(newFranValorFixo) || 2.00,
+                      status: newFranStatus,
                       createdAt: new Date().toISOString()
                     };
+
+                    // Add to franqueados list
                     setFranqueados(prev => [...prev, novo]);
-                    addNotification(`Nova franquia de ${cid.nome} inicializada com sucesso!`, 'success');
+                    
+                    // Save password database association
+                    const passwordKey = `${newFranEmail.trim().toLowerCase()}-FRANQUIA`;
+                    setAccountPasswords(prev => ({
+                      ...prev,
+                      [passwordKey]: newFranSenha
+                    }));
+
+                    // Reset form and close
+                    setNewFranNome('');
+                    setNewFranEmail('');
+                    setNewFranSenha('');
+                    setNewFranTelefone('');
+                    setNewFranCidade('');
+                    setNewFranValorFixo(2.00);
+                    setNewFranStatus('ATIVO');
+                    setShowNewFranForm(false);
+
+                    addNotification(`Franqueado ${novo.nome} cadastrado para a Cidade de ${novo.cidade} com sucesso!`, 'success');
                   }}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  className="bg-slate-50 p-4 rounded-xl border border-emerald-100 space-y-4 mb-4"
                 >
-                  <Plus size={14} /> Add Nova Franquia
-                </button>
-              </div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b pb-2">
+                    <UserPlus size={14} className="text-emerald-700" />
+                    Ficha de Cadastro de Novo Franqueado Regional (Completo)
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Nome do Franqueado *</label>
+                      <input 
+                        type="text"
+                        required
+                        value={newFranNome}
+                        onChange={e => setNewFranNome(e.target.value)}
+                        placeholder="Ex: João da Silva"
+                        className="w-full p-2 border rounded bg-white text-xs text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">E-mail de Login *</label>
+                      <input 
+                        type="email"
+                        required
+                        value={newFranEmail}
+                        onChange={e => setNewFranEmail(e.target.value)}
+                        placeholder="Ex: joao@campinascarona.com.br"
+                        className="w-full p-2 border rounded bg-white text-xs text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Senha de Acesso *</label>
+                      <input 
+                        type="password"
+                        required
+                        value={newFranSenha}
+                        onChange={e => setNewFranSenha(e.target.value)}
+                        placeholder="Defina a senha de login"
+                        className="w-full p-2 border rounded bg-white text-xs text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Telefone Celular *</label>
+                      <input 
+                        type="text"
+                        required
+                        value={newFranTelefone}
+                        onChange={e => setNewFranTelefone(e.target.value)}
+                        placeholder="Ex: (19) 99876-4321"
+                        className="w-full p-2 border rounded bg-white text-xs text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Cidade de Atuação *</label>
+                      <select
+                        required
+                        value={newFranCidade}
+                        onChange={e => setNewFranCidade(e.target.value)}
+                        className="w-full p-2 border rounded bg-white text-xs text-slate-800 font-semibold"
+                      >
+                        <option value="">Selecione uma Cidade...</option>
+                        {cidades.map(c => (
+                          <option key={c.id} value={c.nome}>{c.nome} ({c.estado})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Repasse por Corrida (R$) *</label>
+                      <input 
+                        type="number"
+                        step="0.10"
+                        min="0.10"
+                        required
+                        value={newFranValorFixo}
+                        onChange={e => setNewFranValorFixo(Number(e.target.value))}
+                        className="w-full p-2 border rounded bg-white text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Status Operacional</label>
+                      <select
+                        value={newFranStatus}
+                        onChange={e => setNewFranStatus(e.target.value as 'ATIVO' | 'BLOQUEADO')}
+                        className="w-full p-2 border rounded bg-white text-xs font-bold text-slate-800"
+                      >
+                        <option value="ATIVO">LIBERADO / ATIVO</option>
+                        <option value="BLOQUEADO">BLOQUEADO / INATIVO</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t">
+                    <button
+                      type="button"
+                      onClick={() => setShowNewFranForm(false)}
+                      className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      Salvar Cadastro
+                    </button>
+                  </div>
+                </form>
+              )}
 
               {/* Franqueados list table */}
               <div className="overflow-x-auto">
@@ -4242,15 +4460,16 @@ export default function App() {
         )}
 
         </div> {/* CLOSE main-scrollable-canvas */}
-      </div> {/* CLOSE main-content-flow */}
 
-      {/* FOOTER */}
-      <footer className="bg-zinc-900 py-6 text-xs text-center text-zinc-400 border-t border-zinc-800" id="carona-cash-footer">
-        <div className="max-w-7xl mx-auto px-4">
-          <p>© 2026 Carona Cash • Todos os direitos reservados. Preparado para escala de produção SaaS e hospedagem na Hostinger.</p>
-          <p className="text-zinc-600 mt-1 font-mono">Plataforma desenvolvida com Node.js, Express, React, Tailwind CSS e Prisma PostgreSQL.</p>
-        </div>
-      </footer>
+        {/* FOOTER */}
+        <footer className="bg-zinc-900 py-6 text-xs text-center text-zinc-400 border-t border-zinc-800 shrink-0 mt-auto" id="carona-cash-footer">
+          <div className="max-w-7xl mx-auto px-4">
+            <p>© 2026 Carona Cash • Todos os direitos reservados. Preparado para escala de produção SaaS e hospedagem na Hostinger.</p>
+            <p className="text-zinc-600 mt-1 font-mono">Plataforma desenvolvida com Node.js, Express, React, Tailwind CSS e Prisma PostgreSQL.</p>
+          </div>
+        </footer>
+
+      </div> {/* CLOSE main-content-flow */}
 
       {/* INTERACTIVE PIX COMPONENT MODAL MOCK */}
       {showPixCheckout && (
