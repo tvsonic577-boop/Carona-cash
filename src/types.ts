@@ -96,3 +96,14 @@ export interface PlataformaConfig {
   taxaAtivacaoMotorista: number;
   comissaoPercentual: number;
 }
+
+export interface Franqueado {
+  id: string;
+  nome: string;
+  cidade: string;
+  email: string;
+  telefone: string;
+  valorFixoPorCorrida: number; // Valor fixo por corrida concluída repassado ao dono
+  status: 'ATIVO' | 'BLOQUEADO';
+  createdAt: string;
+}

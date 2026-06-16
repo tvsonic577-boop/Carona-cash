@@ -1,4 +1,4 @@
-import { User, Cliente, Motorista, Corrida, CidadeAtendida, PlataformaConfig } from './types';
+import { User, Cliente, Motorista, Corrida, CidadeAtendida, PlataformaConfig, Franqueado } from './types';
 
 export const INITIAL_CONFIG: PlataformaConfig = {
   precoBase: 5.0,
@@ -208,3 +208,37 @@ export const INITIAL_CORRIDAS: Corrida[] = [
     createdAt: '2026-06-15T10:00:00.000Z',
   }
 ];
+
+export const INITIAL_FRANQUEADOS: Franqueado[] = [
+  {
+    id: 'fr-1',
+    nome: 'Carlos Mendes',
+    cidade: 'Campinas',
+    email: 'carlos@campinascarona.com.br',
+    telefone: '(19) 98765-4321',
+    valorFixoPorCorrida: 2.50,
+    status: 'ATIVO',
+    createdAt: '2026-06-10T14:30:00.000Z'
+  },
+  {
+    id: 'fr-2',
+    nome: 'Mariana Silva',
+    cidade: 'Rio de Janeiro',
+    email: 'mariana@rjcarona.com.br',
+    telefone: '(21) 99888-7766',
+    valorFixoPorCorrida: 3.50,
+    status: 'ATIVO',
+    createdAt: '2026-06-11T09:15:00.000Z'
+  },
+  {
+    id: 'fr-3',
+    nome: 'Fernando Souza',
+    cidade: 'Belo Horizonte',
+    email: 'fernando@bhcarona.com.br',
+    telefone: '(31) 98877-6655',
+    valorFixoPorCorrida: 2.00,
+    status: 'BLOQUEADO',
+    createdAt: '2026-06-12T11:00:00.000Z'
+  }
+];
+
