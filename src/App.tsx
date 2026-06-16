@@ -31,7 +31,8 @@ import {
   Trash2,
   AlertCircle,
   MessageCircle,
-  UserPlus
+  UserPlus,
+  Camera
 } from 'lucide-react';
 
 import { 
@@ -58,36 +59,106 @@ import {
 
 import SimulatedMap from './components/SimulatedMap';
 
+const memoryStorage: { [key: string]: string } = {};
+
+const safeStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (e) {
+      return memoryStorage[key] || null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (e) {
+      memoryStorage[key] = value;
+    }
+  },
+  removeItem: (key: string): void => {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (e) {
+      delete memoryStorage[key];
+    }
+  }
+};
+
+const localStorage = safeStorage;
+
 export default function App() {
   // --- Persistent State Simulation ---
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('cc_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return INITIAL_USERS;
+      }
+    }
+    return INITIAL_USERS;
   });
 
   const [clientes, setClientes] = useState<Cliente[]>(() => {
     const saved = localStorage.getItem('cc_clientes');
-    return saved ? JSON.parse(saved) : INITIAL_CLIENTES;
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return INITIAL_CLIENTES;
+      }
+    }
+    return INITIAL_CLIENTES;
   });
 
   const [motoristas, setMotoristas] = useState<Motorista[]>(() => {
     const saved = localStorage.getItem('cc_motoristas');
-    return saved ? JSON.parse(saved) : INITIAL_MOTORISTAS;
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return INITIAL_MOTORISTAS;
+      }
+    }
+    return INITIAL_MOTORISTAS;
   });
 
   const [corridas, setCorridas] = useState<Corrida[]>(() => {
     const saved = localStorage.getItem('cc_corridas');
-    return saved ? JSON.parse(saved) : INITIAL_CORRIDAS;
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return INITIAL_CORRIDAS;
+      }
+    }
+    return INITIAL_CORRIDAS;
   });
 
   const [cidades, setCidades] = useState<CidadeAtendida[]>(() => {
     const saved = localStorage.getItem('cc_cidades');
-    return saved ? JSON.parse(saved) : INITIAL_CIDADES;
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return INITIAL_CIDADES;
+      }
+    }
+    return INITIAL_CIDADES;
   });
 
   const [franqueados, setFranqueados] = useState<Franqueado[]>(() => {
     const saved = localStorage.getItem('cc_franqueados');
-    return saved ? JSON.parse(saved) : INITIAL_FRANQUEADOS;
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return INITIAL_FRANQUEADOS;
+      }
+    }
+    return INITIAL_FRANQUEADOS;
   });
 
   const [config, setConfig] = useState<PlataformaConfig>(() => {
@@ -95,10 +166,9 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed.comissaoPercentual === 'number') {
-          parsed.comissaoPercentual = Math.min(20, Math.max(1, parsed.comissaoPercentual));
-        }
-        return parsed;
+        const merged = { ...INITIAL_CONFIG, ...parsed };
+        merged.comissaoPercentual = Math.min(20, Math.max(1, merged.comissaoPercentual));
+        return merged;
       } catch (e) {
         return INITIAL_CONFIG;
       }
@@ -138,7 +208,13 @@ export default function App() {
   // --- Active Session Info ---
   // We provide a visual "Simulator Mode Selector" at the very top so the reviewer
   // can test Client, Driver, and Admin flows concurrently in real time.
-  const [activePortal, setActivePortal] = useState<'CLIENTE' | 'MOTORISTA' | 'ADMIN' | 'CODE' | 'FRANQUIA'>('CLIENTE');
+  const [activePortal, setActivePortal] = useState<'CLIENTE' | 'MOTORISTA' | 'ADMIN' | 'CODE' | 'FRANQUIA'>(() => {
+    const role = localStorage.getItem('cc_session_role');
+    if (role === 'CLIENTE' || role === 'MOTORISTA' || role === 'FRANQUIA' || role === 'ADMIN') {
+      return role as any;
+    }
+    return 'CLIENTE';
+  });
   const [activeFranqueadoId, setActiveFranqueadoId] = useState<string>('fr-1');
   
   // Currently logged-in profiles helper
@@ -164,7 +240,13 @@ export default function App() {
   // Account passwords map - enforces separate password and password difference checks!
   const [accountPasswords, setAccountPasswords] = useState<{ [key: string]: string }>(() => {
     const saved = localStorage.getItem('cc_passwords');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback below
+      }
+    }
     return {
       'tvsonic577@gmail.com-ADMIN': 'Jr990387',
       'admin@caronacash.com.br-ADMIN': 'admin',
@@ -197,6 +279,24 @@ export default function App() {
   const [clientFormEmail, setClientFormEmail] = useState('');
   const [clientFormTelefone, setClientFormTelefone] = useState('');
   const [clientFormSenha, setClientFormSenha] = useState('');
+
+  // --- Admin Portal Profile Variables ---
+  const [isEditingAdminProfile, setIsEditingAdminProfile] = useState(false);
+  const [adminProfileFormNome, setAdminProfileFormNome] = useState('');
+  const [adminProfileFormEmail, setAdminProfileFormEmail] = useState('');
+  const [adminProfileFormTelefone, setAdminProfileFormTelefone] = useState('');
+  const [adminProfileFormSenha, setAdminProfileFormSenha] = useState('');
+
+  // --- Driver Portal Variables ---
+  const [isEditingDriverProfile, setIsEditingDriverProfile] = useState(false);
+  const [driverFormNome, setDriverFormNome] = useState('');
+  const [driverFormTelefone, setDriverFormTelefone] = useState('');
+  const [driverFormSenha, setDriverFormSenha] = useState('');
+  const [driverFormCpf, setDriverFormCpf] = useState('');
+  const [driverFormVeiculoMarca, setDriverFormVeiculoMarca] = useState('');
+  const [driverFormVeiculoModelo, setDriverFormVeiculoModelo] = useState('');
+  const [driverFormVeiculoCor, setDriverFormVeiculoCor] = useState('');
+  const [driverFormVeiculoPlaca, setDriverFormVeiculoPlaca] = useState('');
 
   // --- Admin User Database management States ---
   const [adminSubTab, setAdminSubTab] = useState<'OPCAO_1' | 'OPCAO_2' | 'AUDITORIA' | 'CONFIG_GERAL'>('AUDITORIA');
@@ -614,8 +714,37 @@ export default function App() {
       return;
     }
 
-    const passwordKey = `${emailLower}-${loginRole}`;
-    const expectedPassword = accountPasswords[passwordKey];
+    let matchedRole = loginRole;
+    let expectedPassword = accountPasswords[`${emailLower}-${loginRole}`];
+
+    // 1. Fail-safe synchronization: if user exists in the core users list but no password is bound in accountPasswords,
+    // save the input password on the fly, allowing successful login.
+    const registeredUser = users.find(u => u.email.toLowerCase() === emailLower);
+    if (registeredUser) {
+      const uRole = registeredUser.tipo === 'MOTORISTA' ? 'MOTORISTA' : (registeredUser.tipo === 'CLIENTE' ? 'CLIENTE' : 'ADMIN');
+      const passKey = `${emailLower}-${uRole}`;
+      if (!accountPasswords[passKey]) {
+        setAccountPasswords(prev => ({
+          ...prev,
+          [passKey]: loginPassword
+        }));
+        expectedPassword = loginPassword;
+        matchedRole = uRole;
+        setLoginRole(uRole);
+      }
+    }
+
+    // 2. Smart role auto-detection: if password fails for chosen tab, but matches another profile for this email,
+    // auto-shift tab and proceed successfully!
+    if (!expectedPassword || expectedPassword !== loginPassword) {
+      const perfis: ('CLIENTE' | 'MOTORISTA' | 'FRANQUIA' | 'ADMIN')[] = ['MOTORISTA', 'CLIENTE', 'FRANQUIA', 'ADMIN'];
+      const correctProfile = perfis.find(p => accountPasswords[`${emailLower}-${p}`] === loginPassword);
+      if (correctProfile) {
+        matchedRole = correctProfile;
+        expectedPassword = loginPassword;
+        setLoginRole(correctProfile);
+      }
+    }
 
     if (!expectedPassword || expectedPassword !== loginPassword) {
       setValidationError("E-mail ou senha incorretos para o perfil selecionado!");
@@ -623,7 +752,7 @@ export default function App() {
     }
 
     // Success Authentication! Track down specific indices / primary IDs
-    if (loginRole === 'CLIENTE') {
+    if (matchedRole === 'CLIENTE') {
       const uObj = users.find(u => u.email.toLowerCase() === emailLower && u.tipo === 'CLIENTE');
       const cObj = clientes.find(c => c.userId === uObj?.id);
       if (cObj) {
@@ -642,7 +771,7 @@ export default function App() {
       }
       setSessionRole('CLIENTE');
       setActivePortal('CLIENTE');
-    } else if (loginRole === 'MOTORISTA') {
+    } else if (matchedRole === 'MOTORISTA') {
       const uObj = users.find(u => u.email.toLowerCase() === emailLower && u.tipo === 'MOTORISTA');
       const mObj = motoristas.find(m => m.userId === uObj?.id);
       if (mObj) {
@@ -660,7 +789,7 @@ export default function App() {
       }
       setSessionRole('MOTORISTA');
       setActivePortal('MOTORISTA');
-    } else if (loginRole === 'FRANQUIA') {
+    } else if (matchedRole === 'FRANQUIA') {
       const franObj = franqueados.find(f => f.email.toLowerCase() === emailLower);
       if (franObj) {
         setActiveFranqueadoId(franObj.id);
@@ -669,7 +798,7 @@ export default function App() {
       }
       setSessionRole('FRANQUIA');
       setActivePortal('FRANQUIA');
-    } else if (loginRole === 'ADMIN') {
+    } else if (matchedRole === 'ADMIN') {
       setSessionRole('ADMIN');
       setActivePortal('ADMIN');
     }
@@ -1544,27 +1673,93 @@ export default function App() {
                 }
               })()}
             </div>
-            <div className="w-9 h-9 bg-slate-100 border border-slate-200 rounded-full overflow-hidden shrink-0 flex items-center justify-center">
-              {(() => {
-                let seed = "Carlos";
-                if (activePortal === 'CLIENTE') seed = "Amanda";
-                else if (activePortal === 'MOTORISTA') seed = "Roberto";
-                else if (activePortal === 'FRANQUIA') {
-                  const fran = franqueados.find(f => f.id === activeFranqueadoId);
-                  seed = fran?.nome || "Franqueado";
-                } else if (activePortal === 'ADMIN') {
-                  seed = adminUser?.nome || "Carlos";
-                }
+            {(() => {
+              let targetUser: User | undefined = undefined;
+              let roleName = "";
+              if (activePortal === 'ADMIN') {
+                targetUser = adminUser;
+                roleName = "Dono da Plataforma";
+              } else if (activePortal === 'CLIENTE') {
+                const clientObj = clientes.find(c => c.id === activeClienteId);
+                targetUser = users.find(u => u.id === clientObj?.userId);
+                roleName = "Passageiro";
+              } else if (activePortal === 'MOTORISTA') {
+                const mObj = motoristas.find(m => m.id === activeMotoristaId);
+                targetUser = users.find(u => u.id === mObj?.userId);
+                roleName = "Motorista";
+              }
+
+              if (targetUser) {
                 return (
+                  <label 
+                    className="relative block w-9 h-9 bg-slate-100 border border-emerald-500 rounded-full overflow-hidden shrink-0 cursor-pointer group flex items-center justify-center shadow-inner" 
+                    title={`Clique para carregar a foto de perfil (${roleName})`}
+                    id={`header-avatar-${activePortal.toLowerCase()}`}
+                  >
+                    {targetUser.avatar ? (
+                      <img
+                        src={targetUser.avatar}
+                        alt="avatar"
+                        className="w-full h-full object-cover transition duration-150 group-hover:brightness-75"
+                      />
+                    ) : (
+                      <img
+                        referrerPolicy="no-referrer"
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${targetUser.nome || "User"}`}
+                        alt="avatar"
+                        className="w-full h-full object-cover transition duration-150 group-hover:brightness-75"
+                      />
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition duration-150">
+                      <Camera size={11} className="text-white" />
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const base64String = reader.result as string;
+                            setUsers(prev => prev.map(u => {
+                              if (activePortal === 'ADMIN' && u.tipo === 'ADMINISTRADOR') {
+                                return { ...u, avatar: base64String };
+                              }
+                              if (targetUser && u.id === targetUser.id) {
+                                return { ...u, avatar: base64String };
+                              }
+                              return u;
+                            }));
+                            addNotification(`Sua foto de ${roleName} foi carregada com sucesso!`, "success");
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                );
+              }
+
+              let seed = "Carlos";
+              if (activePortal === 'CLIENTE') seed = "Amanda";
+              else if (activePortal === 'MOTORISTA') seed = "Roberto";
+              else if (activePortal === 'FRANQUIA') {
+                const fran = franqueados.find(f => f.id === activeFranqueadoId);
+                seed = fran?.nome || "Franqueado";
+              }
+              return (
+                <div className="w-9 h-9 bg-slate-100 border border-slate-200 rounded-full overflow-hidden shrink-0 flex items-center justify-center">
                   <img
                     referrerPolicy="no-referrer"
                     src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`}
                     alt="avatar"
                     className="w-full h-full object-cover"
                   />
-                );
-              })()}
-            </div>
+                </div>
+              );
+            })()}
 
             {/* Quick Logout Header Action */}
             <button
@@ -1996,12 +2191,42 @@ export default function App() {
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">CONTA EM USO</h3>
                 
                 <div className="flex items-center gap-3">
-                  <img
-                    src={users.find(u => u.id === (clientes.find(c => c.id === activeClienteId)?.userId))?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'}
-                    alt="avatar"
-                    className="w-12 h-12 rounded-full object-cover border border-emerald-500"
-                    id="client-avatar-img"
-                  />
+                  <label className="relative block w-12 h-12 rounded-full overflow-hidden border border-emerald-500 cursor-pointer group shrink-0" title="Clique para alterar foto">
+                    <img
+                      src={users.find(u => u.id === (clientes.find(c => c.id === activeClienteId)?.userId))?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'}
+                      alt="avatar"
+                      className="w-full h-full object-cover transition duration-200 group-hover:brightness-75"
+                      id="client-avatar-img"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition duration-200">
+                      <Camera size={14} className="text-white" />
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const base64String = reader.result as string;
+                            const clientObj = clientes.find(c => c.id === activeClienteId);
+                            if (clientObj) {
+                              setUsers(prev => prev.map(u => {
+                                if (u.id === clientObj.userId) {
+                                  return { ...u, avatar: base64String };
+                                }
+                                return u;
+                              }));
+                              addNotification("Sua nova foto de passageiro foi carregada com sucesso!", "success");
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
                   <div>
                     <h4 className="font-bold text-zinc-900" id="client-name">
                       {users.find(u => u.id === (clientes.find(c => c.id === activeClienteId)?.userId))?.nome || 'Passageiro'}
@@ -2129,6 +2354,44 @@ export default function App() {
                         setIsEditingClientProfile(false);
                         addNotification("Seus dados cadastrais foram atualizados com sucesso!", "success");
                       }} className="space-y-3.5 text-xs text-left animate-fade-in">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Foto de Perfil (Clique para Carregar)</label>
+                          <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                            <img
+                              src={users.find(u => u.id === uObj.id)?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'}
+                              alt="avatar preview"
+                              className="w-12 h-12 rounded-full object-cover border-2 border-emerald-500 shadow-sm shrink-0"
+                            />
+                            <div className="space-y-1">
+                              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-[11px] font-bold rounded-lg cursor-pointer transition shadow-sm">
+                                📷 Carregar Foto
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        const base64String = reader.result as string;
+                                        setUsers(prev => prev.map(u => {
+                                          if (u.id === uObj.id) {
+                                            return { ...u, avatar: base64String };
+                                          }
+                                          return u;
+                                        }));
+                                        addNotification("Sua foto de perfil foi atualizada com sucesso!", "success");
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                              </label>
+                              <p className="text-[9px] text-slate-400">Suporta JPG, PNG ou GIF da galeria do celular</p>
+                            </div>
+                          </div>
+                        </div>
                         <div>
                           <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Nome Completo</label>
                           <input
@@ -2317,7 +2580,7 @@ export default function App() {
                         <span className="text-xs text-zinc-500">Corrida ID: {currentActiveCorrida.id}</span>
                       </div>
                       <h3 className="text-base font-bold text-zinc-900 mt-2">
-                        Trajeto: {currentActiveCorrida.origem.split(',')[0]} com destino a {currentActiveCorrida.destino.split(',')[0]}
+                        Trajeto: {currentActiveCorrida.origem ? currentActiveCorrida.origem.split(',')[0] : 'Origem'} com destino a {currentActiveCorrida.destino ? currentActiveCorrida.destino.split(',')[0] : 'Destino'}
                       </h3>
                       <div className="text-xs text-zinc-600 mt-1 flex items-center gap-3">
                         <span>Distância: <strong>{currentActiveCorrida.distancia} Km</strong></span>
@@ -2413,8 +2676,8 @@ export default function App() {
               <SimulatedMap
                 origemCoords={currentActiveCorrida?.origemCoords}
                 destinoCoords={currentActiveCorrida?.destinoCoords}
-                origemNome={currentActiveCorrida?.origem.split(',')[0]}
-                destinoNome={currentActiveCorrida?.destino.split(',')[0]}
+                origemNome={currentActiveCorrida?.origem ? currentActiveCorrida.origem.split(',')[0] : "Origem"}
+                destinoNome={currentActiveCorrida?.destino ? currentActiveCorrida.destino.split(',')[0] : "Destino"}
                 status={currentActiveCorrida?.status}
                 onArrivedAtOrigin={() => {
                   if (currentActiveCorrida && currentActiveCorrida.status === 'MOTORISTA_A_CAMINHO') {
@@ -2456,11 +2719,40 @@ export default function App() {
                   return (
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={userObj?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'}
-                          alt="avatar"
-                          className="w-12 h-12 rounded-full object-cover border border-emerald-600"
-                        />
+                        <label className="relative block w-12 h-12 rounded-full overflow-hidden border border-emerald-600 cursor-pointer group shrink-0" title="Clique para alterar foto">
+                          <img
+                            src={userObj?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'}
+                            alt="avatar"
+                            className="w-full h-full object-cover transition duration-200 group-hover:brightness-75"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition duration-200">
+                            <Camera size={14} className="text-white" />
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  const base64String = reader.result as string;
+                                  if (userObj) {
+                                    setUsers(prev => prev.map(u => {
+                                      if (u.id === userObj.id) {
+                                        return { ...u, avatar: base64String };
+                                      }
+                                      return u;
+                                    }));
+                                    addNotification("Sua nova foto de motorista foi carregada com sucesso!", "success");
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
                         <div>
                           <h4 className="font-bold text-zinc-900">{userObj?.nome}</h4>
                           <span className="text-[10px] text-zinc-500 font-mono block">CNH: {targetMot.cpf}</span>
@@ -2583,6 +2875,283 @@ export default function App() {
                 })()}
               </div>
 
+              {/* MEUS DADOS CADASTRAIS (MOTORISTA) CARD */}
+              {(() => {
+                const targetMot = motoristas.find(m => m.id === activeMotoristaId);
+                const userObj = users.find(u => u.id === targetMot?.userId);
+                if (!targetMot || !userObj) return null;
+
+                const passKey = `${userObj.email.toLowerCase()}-MOTORISTA`;
+                const userPassword = accountPasswords[passKey] || '';
+
+                if (!isEditingDriverProfile) {
+                  return (
+                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                      <div className="flex justify-between items-center border-b pb-2">
+                        <span className="font-extrabold text-[10px] text-zinc-400 uppercase tracking-wider block">
+                          Dados Cadastrais do Motorista
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDriverFormNome(userObj.nome);
+                            setDriverFormTelefone(userObj.telefone || '');
+                            setDriverFormSenha(userPassword);
+                            setDriverFormCpf(targetMot.cpf);
+                            setDriverFormVeiculoMarca(targetMot.veiculo.marca);
+                            setDriverFormVeiculoModelo(targetMot.veiculo.modelo);
+                            setDriverFormVeiculoCor(targetMot.veiculo.cor);
+                            setDriverFormVeiculoPlaca(targetMot.veiculo.placa);
+                            setIsEditingDriverProfile(true);
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-bold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 hover:border-zinc-300 rounded-lg cursor-pointer transition flex items-center gap-1 shrink-0"
+                        >
+                          ✎ Alterar Dados
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 text-xs text-slate-700">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Nome:</span>
+                          <span className="font-bold text-slate-800">{userObj.nome}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">E-mail:</span>
+                          <span className="font-mono text-slate-800">{userObj.email}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Telefone:</span>
+                          <span className="font-semibold text-slate-800">{userObj.telefone || 'Não informado'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Senha:</span>
+                          <span className="font-mono text-slate-800">••••••••</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">CNH (CPF):</span>
+                          <span className="font-mono text-slate-800">{targetMot.cpf}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Veículo:</span>
+                          <span className="font-semibold text-slate-800">{targetMot.veiculo.marca} {targetMot.veiculo.modelo} ({targetMot.veiculo.cor})</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Placa:</span>
+                          <span className="font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-800">{targetMot.veiculo.placa}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const trimmedNome = driverFormNome.trim();
+                      const trimmedTelefone = driverFormTelefone.trim();
+                      const trimmedSenha = driverFormSenha.trim();
+                      const trimmedCpf = driverFormCpf.trim();
+                      const trimmedVeiculoMarca = driverFormVeiculoMarca.trim();
+                      const trimmedVeiculoModelo = driverFormVeiculoModelo.trim();
+                      const trimmedVeiculoCor = driverFormVeiculoCor.trim();
+                      const trimmedVeiculoPlaca = driverFormVeiculoPlaca.trim().toUpperCase();
+
+                      if (!trimmedNome || !trimmedSenha) {
+                        addNotification("Nome Completo e Senha Secreta são de preenchimento obrigatório!", "warn");
+                        return;
+                      }
+
+                      // 1. Update core user
+                      setUsers(prev => prev.map(u => {
+                        if (u.id === userObj.id) {
+                          return { ...u, nome: trimmedNome, telefone: trimmedTelefone };
+                        }
+                        return u;
+                      }));
+
+                      // 2. Update password
+                      setAccountPasswords(prev => ({
+                        ...prev,
+                        [passKey]: trimmedSenha
+                      }));
+
+                      // 3. Update motorista details
+                      setMotoristas(prev => prev.map(m => {
+                        if (m.id === targetMot.id) {
+                          return {
+                            ...m,
+                            cpf: trimmedCpf,
+                            veiculo: {
+                              ...m.veiculo,
+                              marca: trimmedVeiculoMarca || m.veiculo.marca,
+                              modelo: trimmedVeiculoModelo || m.veiculo.modelo,
+                              cor: trimmedVeiculoCor || m.veiculo.cor,
+                              placa: trimmedVeiculoPlaca || m.veiculo.placa
+                            }
+                          };
+                        }
+                        return m;
+                      }));
+
+                      setIsEditingDriverProfile(false);
+                      addNotification("Seus dados cadastrais de motorista foram salvos com sucesso!", "success");
+                    }}
+                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-3.5 text-xs text-left"
+                  >
+                    <div className="flex justify-between items-center border-b pb-2">
+                      <span className="font-extrabold text-[10px] text-emerald-800 uppercase tracking-wider block">
+                        ⚙️ Alterar Cadastro
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingDriverProfile(false)}
+                        className="text-slate-400 hover:text-slate-600 font-bold"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {/* PROFILE PICTURE LOADER INSIDE UPDATE cadastro BLOCK */}
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Foto de Perfil do Motorista</label>
+                        <div className="flex items-center gap-2.5 bg-slate-50 p-2 rounded-xl border">
+                          <img
+                            src={userObj.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'}
+                            alt="preview"
+                            className="w-10 h-10 rounded-full object-cover border"
+                          />
+                          <div>
+                            <label className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-[10px] font-bold cursor-pointer transition">
+                              Carregar Foto 📷
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      const base64String = reader.result as string;
+                                      setUsers(prev => prev.map(u => {
+                                        if (u.id === userObj.id) {
+                                          return { ...u, avatar: base64String };
+                                        }
+                                        return u;
+                                      }));
+                                      addNotification("Sua foto de perfil foi atualizada!", "success");
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Nome Completo</label>
+                        <input
+                          type="text"
+                          value={driverFormNome}
+                          onChange={e => setDriverFormNome(e.target.value)}
+                          className="w-full p-2 border rounded bg-white text-zinc-800"
+                          required
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Senha Secreta</label>
+                          <input
+                            type="text"
+                            value={driverFormSenha}
+                            onChange={e => setDriverFormSenha(e.target.value)}
+                            className="w-full p-2 border rounded bg-white text-zinc-800 font-mono"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Telefone</label>
+                          <input
+                            type="text"
+                            value={driverFormTelefone}
+                            onChange={e => setDriverFormTelefone(e.target.value)}
+                            className="w-full p-2 border rounded bg-white text-zinc-800"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">CNH (CPF)</label>
+                        <input
+                          type="text"
+                          value={driverFormCpf}
+                          onChange={e => setDriverFormCpf(e.target.value)}
+                          className="w-full p-2 border rounded bg-white text-zinc-800 font-mono"
+                        />
+                      </div>
+
+                      <div className="p-2.5 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-2">
+                        <span className="font-extrabold text-[8px] text-emerald-850 uppercase tracking-wider block">
+                          🚗 Detalhes do Veículo
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[8px] uppercase font-bold text-slate-500">Marca</label>
+                            <input
+                              type="text"
+                              value={driverFormVeiculoMarca}
+                              onChange={e => setDriverFormVeiculoMarca(e.target.value)}
+                              className="w-full p-1 border rounded bg-white text-[10px]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[8px] uppercase font-bold text-slate-500">Modelo</label>
+                            <input
+                              type="text"
+                              value={driverFormVeiculoModelo}
+                              onChange={e => setDriverFormVeiculoModelo(e.target.value)}
+                              className="w-full p-1 border rounded bg-white text-[10px]"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[8px] uppercase font-bold text-slate-500">Cor</label>
+                            <input
+                              type="text"
+                              value={driverFormVeiculoCor}
+                              onChange={e => setDriverFormVeiculoCor(e.target.value)}
+                              className="w-full p-1 border rounded bg-white text-[10px]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[8px] uppercase font-bold text-slate-500">Placa</label>
+                            <input
+                              type="text"
+                              value={driverFormVeiculoPlaca}
+                              onChange={e => setDriverFormVeiculoPlaca(e.target.value.toUpperCase())}
+                              className="w-full p-1 border rounded bg-white font-mono text-[10px]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition shadow-sm cursor-pointer border-0"
+                    >
+                      ✓ Salvar Cadastro
+                    </button>
+                  </form>
+                );
+              })()}
+
             </div>
 
             {/* Simulated Shift Terminal Monitor / Driver Center on the right */}
@@ -2615,12 +3184,27 @@ export default function App() {
                             <span className="text-[10px] bg-emerald-800 text-white px-2 py-0.5 rounded font-bold font-mono uppercase tracking-wider">
                               CORRIDA ATIVA DESIGNADA
                             </span>
-                            <h4 className="font-extrabold text-slate-900 text-sm mt-1.5">
-                              Passageiro: {activeSelfCorrida.clienteNome}
-                            </h4>
+                            {(() => {
+                              const clientObj = clientes.find(c => c.id === activeSelfCorrida.clienteId);
+                              const clientUser = users.find(u => u.id === clientObj?.userId);
+                              const clientAvatar = clientUser?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150';
+
+                              return (
+                                <div className="flex items-center gap-2.5 my-2 bg-white p-2.5 rounded-xl border border-slate-200 max-w-sm shadow-sm select-none">
+                                  <img
+                                    src={clientAvatar}
+                                    alt="avatar passageiro"
+                                    className="w-10 h-10 rounded-full object-cover border border-emerald-500"
+                                  />
+                                  <div>
+                                    <h4 className="font-bold text-slate-900 text-xs">{activeSelfCorrida.clienteNome}</h4>
+                                    <span className="text-[10px] text-zinc-500 block">Celular: {activeSelfCorrida.clienteTelefone}</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             <p className="text-xs text-slate-600 mt-1">Origem: <strong>{activeSelfCorrida.origem}</strong></p>
                             <p className="text-xs text-slate-600">Destino: <strong>{activeSelfCorrida.destino}</strong></p>
-                            <p className="text-xs text-slate-600">Telefone para contato: <strong>{activeSelfCorrida.clienteTelefone}</strong></p>
                           </div>
                           
                           <div className="text-right">
@@ -2702,38 +3286,54 @@ export default function App() {
 
                   return (
                     <div className="space-y-3">
-                      {pendingRides.map(corrida => (
-                        <div key={corrida.id} className="p-4 border rounded-xl hover:shadow-md transition-shadow flex flex-col md:flex-row justify-between gap-4 bg-slate-50">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded font-bold font-mono uppercase tracking-wider">
-                                NOVA CORRIDA DISPONÍVEL
-                              </span>
-                              <span className="text-[10px] text-zinc-500">ID: {corrida.id}</span>
-                            </div>
-                            <h4 className="font-bold text-zinc-900 text-xs">Passageiro: {corrida.clienteNome}</h4>
-                            <div className="text-xs text-zinc-600">
-                              <p>📌 <strong>De:</strong> {corrida.origem}</p>
-                              <p>🏁 <strong>Para:</strong> {corrida.destino}</p>
-                            </div>
-                            <span className="text-[10px] text-zinc-500 block font-semibold">Distancia: {corrida.distancia} Km • Estimativa: {corrida.duracao} minutos</span>
-                          </div>
+                      {pendingRides.map(corrida => {
+                        const clientObj = clientes.find(c => c.id === corrida.clienteId);
+                        const clientUser = users.find(u => u.id === clientObj?.userId);
+                        const clientAvatar = clientUser?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150';
 
-                          <div className="text-right shrink-0 flex flex-col justify-between items-end gap-3">
-                            <div>
-                              <span className="text-[10px] text-slate-400 block uppercase">VALOR QUE CORRESPONDIDO</span>
-                              <span className="text-base font-extrabold text-emerald-700">R$ {corrida.valor.toFixed(2)}</span>
+                        return (
+                          <div key={corrida.id} className="p-4 border rounded-xl hover:shadow-md transition-shadow flex flex-col md:flex-row justify-between gap-4 bg-slate-50">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded font-bold font-mono uppercase tracking-wider">
+                                  NOVA CORRIDA DISPONÍVEL
+                                </span>
+                                <span className="text-[10px] text-zinc-500">ID: {corrida.id}</span>
+                              </div>
+                              <div className="flex items-center gap-2.5 mb-1 bg-white p-2 rounded-lg border border-slate-100 max-w-sm">
+                                <img
+                                  src={clientAvatar}
+                                  alt="avatar passageiro"
+                                  className="w-8 h-8 rounded-full object-cover border border-emerald-500"
+                                />
+                                <div>
+                                  <h4 className="font-bold text-zinc-900 text-xs">Passageiro: {corrida.clienteNome}</h4>
+                                  <span className="text-[10px] text-zinc-400 block">{corrida.clienteTelefone}</span>
+                                </div>
+                              </div>
+                              <div className="text-xs text-zinc-600">
+                                <p>📌 <strong>De:</strong> {corrida.origem}</p>
+                                <p>🏁 <strong>Para:</strong> {corrida.destino}</p>
+                              </div>
+                              <span className="text-[10px] text-zinc-500 block font-semibold">Distancia: {corrida.distancia} Km • Estimativa: {corrida.duracao} minutos</span>
                             </div>
 
-                            <button
-                              onClick={() => handleAcceptRide(corrida.id, activeMotoristaId)}
-                              className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm hover:cursor-pointer"
-                            >
-                              Aceitar e Ir ao Local ✅
-                            </button>
+                            <div className="text-right shrink-0 flex flex-col justify-between items-end gap-3">
+                              <div>
+                                <span className="text-[10px] text-slate-400 block uppercase">VALOR QUE CORRESPONDIDO</span>
+                                <span className="text-base font-extrabold text-emerald-700">R$ {corrida.valor.toFixed(2)}</span>
+                              </div>
+
+                              <button
+                                onClick={() => handleAcceptRide(corrida.id, activeMotoristaId)}
+                                className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm hover:cursor-pointer"
+                              >
+                                Aceitar e Ir ao Local ✅
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })()}
@@ -2747,7 +3347,7 @@ export default function App() {
                   {corridas.filter(c => c.motoristaId === activeMotoristaId).map(item => (
                     <div key={item.id} className="flex justify-between items-center p-2.5 border-b last:border-0">
                       <div>
-                        <span className="font-bold block text-slate-900">{item.destino.split(',')[0]}</span>
+                        <span className="font-bold block text-slate-900">{item.destino ? item.destino.split(',')[0] : 'Destino'}</span>
                         <span className="text-[10px] text-zinc-400">{new Date(item.createdAt).toLocaleString()}</span>
                       </div>
                       <div className="text-right">
@@ -2770,6 +3370,196 @@ export default function App() {
         {/* 3. PAINEL DO DONO / ADMINISTRADOR (ADMIN) */}
         {activePortal === 'ADMIN' && (
           <div className="space-y-6" id="admin-view-container">
+
+            {/* MEUS DADOS DE ADMINISTRADOR CARD (Consistent with general client/driver profile cards) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="lg:col-span-4 bg-white p-5 rounded-2xl border border-gray-150 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div className="absolute top-0 left-0 w-full h-1 bg-emerald-700"></div>
+                
+                <div className="flex items-center gap-3">
+                  <label 
+                    className="relative block w-12 h-12 rounded-full overflow-hidden border border-emerald-500 cursor-pointer group shrink-0" 
+                    title="Clique para carregar foto correspondente"
+                    id="admin-profile-avatar-label-main"
+                  >
+                    {adminUser?.avatar ? (
+                      <img
+                        src={adminUser.avatar}
+                        alt="avatar admin"
+                        className="w-full h-full object-cover transition duration-200 group-hover:brightness-75"
+                      />
+                    ) : (
+                      <img
+                        referrerPolicy="no-referrer"
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${adminUser?.nome || "Carlos"}`}
+                        alt="avatar admin"
+                        className="w-full h-full object-cover transition duration-200 group-hover:brightness-75"
+                      />
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition duration-200">
+                      <Camera size={14} className="text-white" />
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const base64String = reader.result as string;
+                            setUsers(prev => prev.map(u => {
+                              if (u.tipo === 'ADMINISTRADOR') {
+                                return { ...u, avatar: base64String };
+                              }
+                              return u;
+                            }));
+                            addNotification("Sua foto de administrador foi atualizada com sucesso!", "success");
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-zinc-900 truncate">
+                      {adminUser?.nome || 'Carlos Oliveira'}
+                    </h4>
+                    <span className="text-[11px] text-zinc-500 block truncate">Reg: central-admin-01</span>
+                    <span className="text-[9px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full inline-block mt-0.5">Dono da Plataforma</span>
+                  </div>
+                </div>
+
+                {!isEditingAdminProfile && (
+                  <button
+                    onClick={() => {
+                      if (adminUser) {
+                        setAdminProfileFormNome(adminUser.nome || '');
+                        setAdminProfileFormEmail(adminUser.email || '');
+                        setAdminProfileFormTelefone(adminUser.telefone || '');
+                        const passKey = `${adminUser.email.toLowerCase()}-ADMIN`;
+                        setAdminProfileFormSenha(accountPasswords[passKey] || 'Jr990387');
+                        setIsEditingAdminProfile(true);
+                      }
+                    }}
+                    className="mt-3 text-left text-[11px] text-emerald-700 hover:text-emerald-950 font-bold flex items-center gap-0.5 cursor-pointer hover:underline"
+                  >
+                    Alterar Dados ✎
+                  </button>
+                )}
+              </div>
+
+              <div className="lg:col-span-8">
+                {isEditingAdminProfile && adminUser ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const trimmedNome = adminProfileFormNome.trim();
+                      const trimmedEmail = adminProfileFormEmail.trim().toLowerCase();
+                      const trimmedTelefone = adminProfileFormTelefone.trim();
+                      const trimmedSenha = adminProfileFormSenha.trim();
+
+                      if (!trimmedNome || !trimmedEmail || !trimmedSenha) {
+                        addNotification("Preencha todos os campos obrigatórios!", "warn");
+                        return;
+                      }
+
+                      // Update users list
+                      setUsers(prev => prev.map(u => {
+                        if (u.tipo === 'ADMINISTRADOR') {
+                          return {
+                            ...u,
+                            nome: trimmedNome,
+                            email: trimmedEmail,
+                            telefone: trimmedTelefone
+                          };
+                        }
+                        return u;
+                      }));
+
+                      // Update passwords map
+                      setAccountPasswords(prev => {
+                        const next = { ...prev };
+                        const oldKey = `${adminUser.email.toLowerCase()}-ADMIN`;
+                        delete next[oldKey];
+                        next[`${trimmedEmail}-ADMIN`] = trimmedSenha;
+                        return next;
+                      });
+
+                      // Keep loggedInEmail updated
+                      if (loggedInEmail.toLowerCase() === adminUser.email.toLowerCase()) {
+                        setLoggedInEmail(trimmedEmail);
+                      }
+
+                      setIsEditingAdminProfile(false);
+                      addNotification("Perfil do administrador salvo com sucesso!", "success");
+                    }}
+                    className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-3"
+                  >
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500">Nome Completo</label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full p-2 text-xs rounded border border-slate-200 bg-white"
+                        value={adminProfileFormNome}
+                        onChange={e => setAdminProfileFormNome(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500">E-mail Operacional</label>
+                      <input
+                        type="email"
+                        required
+                        className="w-full p-2 text-xs rounded border border-slate-200 bg-white"
+                        value={adminProfileFormEmail}
+                        onChange={e => setAdminProfileFormEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500">Telefone</label>
+                      <input
+                        type="text"
+                        className="w-full p-2 text-xs rounded border border-slate-200 bg-white"
+                        value={adminProfileFormTelefone}
+                        onChange={e => setAdminProfileFormTelefone(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500">Senha</label>
+                      <input
+                        type="password"
+                        required
+                        className="w-full p-2 text-xs rounded border border-slate-200 bg-white font-mono"
+                        value={adminProfileFormSenha}
+                        onChange={e => setAdminProfileFormSenha(e.target.value)}
+                      />
+                    </div>
+                    <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingAdminProfile(false)}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg cursor-pointer"
+                      >
+                        Salvar Alterações
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="bg-emerald-800/5 p-5 rounded-xl border border-emerald-700/10 h-full flex flex-col justify-center">
+                    <p className="text-xs text-emerald-850 font-bold">Conta do Administrador ativa e monitorada por SSL.</p>
+                    <p className="text-[11px] text-zinc-500 mt-1">Como Dono da Plataforma, você tem privilégios totais para auditar documentos, configurar taxas/tarifas globais, aprovar motoristas e gerenciar franquias regionais.</p>
+                  </div>
+                )}
+              </div>
+            </div>
             
             {/* KPI METRICS SHEETS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -2873,8 +3663,8 @@ export default function App() {
                   }`}
                 >
                   🚗 Opção 2: Motoristas
-                  <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${adminSubTab === 'OPCAO_2' ? 'bg-emerald-900 text-white' : 'bg-slate-200 text-slate-800'}`}>
-                    {motoristas.filter(m => m.documentoStatus === 'APROVADO').length}
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${adminSubTab === 'OPCAO_2' ? 'bg-emerald-950 text-white' : 'bg-slate-200 text-slate-800'}`}>
+                    {motoristas.length}
                   </span>
                 </button>
 
@@ -2901,7 +3691,7 @@ export default function App() {
                   className={`py-3 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     adminSubTab === 'CONFIG_GERAL'
                       ? 'bg-emerald-700 text-white shadow font-extrabold scale-[1.01]'
-                      : 'bg-white text-slate-700 hover:bg-slate-200/50 border border-slate-200'
+                      : 'bg-white text-slate-700 hover:bg-slate-205 hover:bg-slate-200/50 border border-slate-200'
                   }`}
                 >
                   ⚙️ Configs & Franquias
@@ -3086,8 +3876,8 @@ export default function App() {
                     const query = adminUserSearchQuery.trim().toLowerCase();
                     const matched = users.filter(u => {
                       const linkedDriver = motoristas.find(m => m.userId === u.id);
-                      if (adminSubTab === 'OPCAO_1' && u.tipo === 'ADMIN') return false;
-                      if (adminSubTab === 'OPCAO_2' && (u.tipo !== 'MOTORISTA' || !linkedDriver || linkedDriver.documentoStatus !== 'APROVADO')) return false;
+                      if (adminSubTab === 'OPCAO_1' && u.tipo !== 'CLIENTE') return false;
+                      if (adminSubTab === 'OPCAO_2' && u.tipo !== 'MOTORISTA') return false;
 
                       if (!query) return true; // Show all if empty query
 
@@ -3179,6 +3969,19 @@ export default function App() {
                             </div>
                             <div className="text-[10px] text-slate-400 block truncate">{u.email}</div>
                             <div className="text-[10px] text-slate-500 font-mono">CPF: {userCpf}</div>
+                            {u.tipo === 'MOTORISTA' && driverObj && (
+                              <div className="mt-1">
+                                <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase tracking-widest ${
+                                  driverObj.documentoStatus === 'APROVADO' 
+                                    ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-200' 
+                                    : driverObj.documentoStatus === 'REJEITADO' 
+                                    ? 'bg-rose-100 text-rose-800 font-bold border border-rose-200' 
+                                    : 'bg-amber-100 text-amber-800 font-bold border border-amber-300 animate-pulse'
+                                }`}>
+                                  Docs CNH: {driverObj.documentoStatus}
+                                </span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="text-right shrink-0 ml-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
@@ -3260,9 +4063,11 @@ export default function App() {
 
                 {/* FORMULÁRIO DE EDIÇÃO DE DADOS DE USUÁRIO */}
                 <div className="lg:col-span-6 bg-slate-50 p-4 rounded-xl border border-slate-200 min-h-[300px] flex flex-col justify-between">
-                  {adminEditingUser ? (
-                    <form
-                      onSubmit={(e) => {
+                  {adminEditingUser ? (() => {
+                    const driverObj = motoristas.find(m => m.userId === adminEditingUser.id);
+                    return (
+                      <form
+                        onSubmit={(e) => {
                         e.preventDefault();
                         const targetId = adminEditingUser.id;
                         const trimmedNome = adminFormNome.trim();
@@ -3343,7 +4148,7 @@ export default function App() {
                     >
                       <div className="flex justify-between items-center border-b pb-2">
                         <span className="font-bold text-[11px] text-slate-700 uppercase tracking-widest block">
-                          Editar Conta: <span className="text-emerald-700 font-mono">{adminEditingUser.nome.split(' ')[0]}</span>
+                          Editar Conta: <span className="text-emerald-700 font-mono">{adminEditingUser.nome ? adminEditingUser.nome.split(' ')[0] : 'Usuário'}</span>
                         </span>
                         <button
                           type="button"
@@ -3352,6 +4157,45 @@ export default function App() {
                         >
                           ✕ Fechar
                         </button>
+                      </div>
+
+                      {/* Foto do Perfil (Upload do Dono/Administrador) */}
+                      <div className="p-3 bg-white rounded-xl border border-slate-100 flex items-center gap-3">
+                        <div className="relative shrink-0">
+                          <img
+                            src={users.find(u => u.id === adminEditingUser.id)?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
+                            alt="avatar preview"
+                            className="w-12 h-12 rounded-full object-cover border-2 border-emerald-650 shadow-sm shrink-0"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[9px] uppercase font-bold text-slate-500">Alterar Foto do Perfil</label>
+                          <label className="inline-flex items-center gap-1.5 px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-white text-[10px] font-bold rounded cursor-pointer transition shadow-sm">
+                            📷 Carregar Foto
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    const base64String = reader.result as string;
+                                    setUsers(prev => prev.map(u => {
+                                      if (u.id === adminEditingUser.id) {
+                                        return { ...u, avatar: base64String };
+                                      }
+                                      return u;
+                                    }));
+                                    addNotification(`Foto de perfil do usuário "${adminEditingUser.nome}" atualizada com sucesso!`, "success");
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
@@ -3514,6 +4358,47 @@ export default function App() {
                         </select>
                       </div>
 
+                      {driverObj && (
+                        <div className="p-3 bg-zinc-100 rounded-xl border border-zinc-200/60 space-y-2 mt-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-extrabold text-[9px] text-zinc-500 uppercase tracking-widest block font-sans">
+                              CNH & Homologação de Documentos
+                            </span>
+                            <span className={`text-[8px] px-1.5 py-0.2 rounded font-black uppercase tracking-widest ${
+                              driverObj.documentoStatus === 'APROVADO' ? 'bg-emerald-100 text-emerald-800 border border-emerald-250' :
+                              driverObj.documentoStatus === 'REJEITADO' ? 'bg-rose-100 text-rose-800 border border-rose-250' : 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
+                            }`}>
+                              {driverObj.documentoStatus}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 leading-snug font-sans">
+                            Clique abaixo para homologar ou rejeitar os documentos de habilitação desse motorista:
+                          </p>
+                          <div className="flex gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleApproveDriverDocs(driverObj.id, true);
+                                setAdminFormStatus('ATIVO');
+                              }}
+                              className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold cursor-pointer transition-all border-0 shadow-sm"
+                            >
+                              ✓ Aprovar CNH & Ativar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleApproveDriverDocs(driverObj.id, false);
+                                setAdminFormStatus('PENDENTE_APROVACAO');
+                              }}
+                              className="py-1.5 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-bold cursor-pointer transition-all border-0 shadow-sm"
+                            >
+                              ✕ Rejeitar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex gap-2 pt-1 border-t mt-2">
                         <button
                           type="submit"
@@ -3530,7 +4415,9 @@ export default function App() {
                         </button>
                       </div>
                     </form>
-                  ) : (
+                    );
+                  })()
+                  : (
                     <div className="flex-1 flex flex-col justify-center items-center text-center p-6 text-slate-400 space-y-2">
                       <Settings size={36} className="text-slate-300" />
                       <div className="max-w-[240px]">
@@ -3793,7 +4680,7 @@ export default function App() {
                       // Total finished rides in this franchise city
                       const cityRides = corridas.filter(c => {
                         const drv = motoristas.find(m => m.id === c.motoristaId);
-                        return c.status === 'CONCLUIDA' && (drv?.cidade === f.cidade || c.origem.includes(f.cidade));
+                        return c.status === 'CONCLUIDA' && (drv?.cidade === f.cidade || (c.origem && c.origem.includes(f.cidade)));
                       });
                       
                       const repasseDevido = cityRides.length * f.valorFixoPorCorrida;
@@ -4137,9 +5024,62 @@ export default function App() {
             {/* MOTORISTAS APPROVAL & DOCUMENTS AUDIT LIST */}
             {adminSubTab === 'AUDITORIA' && (
               <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-fade-in">
-              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                <UserCheck size={18} className="text-emerald-700" />
-                {adminUser?.nome || "Dono da Plataforma"}: Aprovação de Motoristas e Auditoria de Documentos
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-3 mb-4">
+                {(() => {
+                  if (adminUser) {
+                    return (
+                      <label 
+                        className="relative block w-7 h-7 bg-slate-100 border border-emerald-500 rounded-full overflow-hidden shrink-0 cursor-pointer group flex items-center justify-center shadow-inner" 
+                        title="Clique aqui para carregar a foto do Dono da Plataforma"
+                        id="admin-auditoria-title-avatar-label"
+                      >
+                        {adminUser.avatar ? (
+                          <img
+                            src={adminUser.avatar}
+                            alt="avatar dono"
+                            className="w-full h-full object-cover transition duration-150 group-hover:brightness-75"
+                          />
+                        ) : (
+                          <img
+                            referrerPolicy="no-referrer"
+                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${adminUser.nome || "Carlos"}`}
+                            alt="avatar dono"
+                            className="w-full h-full object-cover transition duration-150 group-hover:brightness-75"
+                          />
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition duration-150">
+                          <Camera size={10} className="text-white" />
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                const base64String = reader.result as string;
+                                setUsers(prev => prev.map(u => {
+                                  if (u.id === adminUser.id || u.tipo === 'ADMINISTRADOR') {
+                                    return { ...u, avatar: base64String };
+                                  }
+                                  return u;
+                                }));
+                                addNotification("Sua foto de Dono da Plataforma foi carregada com sucesso!", "success");
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    );
+                  }
+                  return <UserCheck size={18} className="text-emerald-700 shrink-0" />;
+                })()}
+                <span>
+                  {adminUser?.nome || "Dono da Plataforma"}: Aprovação de Motoristas e Auditoria de Documentos
+                </span>
               </h3>
 
               <div className="overflow-x-auto">
@@ -4336,7 +5276,7 @@ export default function App() {
                           <span className="text-[10px] text-zinc-400">→</span>
                           <span className="text-slate-500 font-medium text-[10px]">{ct.motoristaNome || 'Aguardando'}</span>
                         </div>
-                        <p className="text-[11px] text-slate-600 mt-1">📌 {ct.origem.split(',')[0]} ➔ {ct.destino.split(',')[0]}</p>
+                        <p className="text-[11px] text-slate-600 mt-1">📌 {ct.origem ? ct.origem.split(',')[0] : 'Origem'} ➔ {ct.destino ? ct.destino.split(',')[0] : 'Destino'}</p>
                         <span className="text-[10px] text-zinc-400 font-mono">{new Date(ct.createdAt).toLocaleString()}</span>
                       </div>
 
@@ -4417,7 +5357,7 @@ export default function App() {
               // ELSE: FRANCHISE IS ACTIVE! Let's build the operations layout.
               const cityRides = corridas.filter(c => {
                 const drv = motoristas.find(m => m.id === c.motoristaId);
-                return drv?.cidade === currentFran.cidade || c.origem.includes(currentFran.cidade);
+                return drv?.cidade === currentFran.cidade || (c.origem && c.origem.includes(currentFran.cidade));
               });
               
               const cityCompletedRides = cityRides.filter(r => r.status === 'CONCLUIDA');
