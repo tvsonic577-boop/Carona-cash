@@ -12,6 +12,26 @@ export const INITIAL_CIDADES: CidadeAtendida[] = [
   { id: '2', nome: 'Campinas', estado: 'SP', status: 'ATIVO' },
   { id: '3', nome: 'Rio de Janeiro', estado: 'RJ', status: 'ATIVO' },
   { id: '4', nome: 'Belo Horizonte', estado: 'MG', status: 'ATIVO' },
+  { id: '5', nome: 'Itaberaí', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-2', nome: 'Goiânia', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-3', nome: 'Anápolis', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-4', nome: 'Aparecida de Goiânia', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-5', nome: 'Rio Verde', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-6', nome: 'Luziânia', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-7', nome: 'Valparaíso de Goiás', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-8', nome: 'Trindade', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-9', nome: 'Formosa', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-10', nome: 'Senador Canedo', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-11', nome: 'Catalão', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-12', nome: 'Itumbiara', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-13', nome: 'Jataí', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-14', nome: 'Caldas Novas', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-15', nome: 'Planaltina', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-16', nome: 'Goianésia', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-17', nome: 'Cidade de Goiás', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-18', nome: 'Inhumas', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-19', nome: 'Jaraguá', estado: 'GO', status: 'ATIVO' },
+  { id: 'go-20', nome: 'Ceres', estado: 'GO', status: 'ATIVO' },
 ];
 
 export const INITIAL_USERS: User[] = [
@@ -74,6 +94,26 @@ export const INITIAL_USERS: User[] = [
     status: 'PENDENTE_APROVACAO', // Waiting approvals
     createdAt: '2026-06-01T09:12:00.000Z',
     avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150',
+  },
+  {
+    id: 'u-cli-go',
+    nome: 'Mariana Gomes (Goiás)',
+    email: 'mariana.goias@gmail.com',
+    telefone: '(62) 98888-7711',
+    tipo: 'CLIENTE',
+    status: 'ATIVO',
+    createdAt: '2026-06-16T10:00:00.000Z',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+  },
+  {
+    id: 'u-mot-go',
+    nome: 'Felipe Goiano (Goiás)',
+    email: 'felipe.driver@gmail.com',
+    telefone: '(62) 97777-6622',
+    tipo: 'MOTORISTA',
+    status: 'ATIVO',
+    createdAt: '2026-06-16T10:00:00.000Z',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150',
   }
 ];
 
@@ -91,6 +131,13 @@ export const INITIAL_CLIENTES: Cliente[] = [
     cpf: '987.654.321-02',
     endereco: 'Rua Augusta, 450 - Consolação',
     cidade: 'São Paulo',
+  },
+  {
+    id: 'c-go',
+    userId: 'u-cli-go',
+    cpf: '456.789.012-34',
+    endereco: 'Avenida Goiás, 200 - Centro',
+    cidade: 'Itaberaí',
   }
 ];
 
@@ -155,6 +202,29 @@ export const INITIAL_MOTORISTAS: Motorista[] = [
       ano: 2021,
       cor: 'Preto',
       placa: 'CAR-0C45',
+    },
+    documentos: {
+      cnhFrente: 'https://example.com/docs/cnh3.jpg',
+      comprovanteEndereco: 'https://example.com/docs/comp3.jpg',
+      veiculoFrente: 'https://example.com/docs/vf3.jpg',
+      veiculoLateral: 'https://example.com/docs/vl3.jpg',
+      veiculoTraseira: 'https://example.com/docs/vt3.jpg',
+    }
+  },
+  {
+    id: 'm-go',
+    userId: 'u-mot-go',
+    cpf: '888.777.666-55',
+    endereco: 'Rua das Flores, 45 - Centro',
+    cidade: 'Itaberaí',
+    documentoStatus: 'APROVADO',
+    isSubscriptionPaid: true,
+    veiculo: {
+      marca: 'Fiat',
+      modelo: 'Uno',
+      ano: 2015,
+      cor: 'Prata',
+      placa: 'GOI-9F12',
     },
     documentos: {
       cnhFrente: 'https://example.com/docs/cnh3.jpg',

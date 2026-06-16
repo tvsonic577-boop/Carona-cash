@@ -34,15 +34,38 @@ export default function SimulatedMap({
   const [carCoords, setCarCoords] = useState<{ x: number; y: number } | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Helper: map geographical coordinates to canvas x/y (using standard bounding box)
-  // Our coordinates range from lat: -23.50 to -23.60, lng: -46.60 to -46.70 (São Paulo example)
+  // Helper: map geographical coordinates to canvas x/y (using dynamic bounding box support)
   const mapCoordsToCanvas = (lat: number, lng: number) => {
-    // Lat range: -23.50 (top) to -23.60 (bottom)
-    // Lng range: -46.70 (left) to -46.60 (right)
-    const minLat = -23.60;
-    const maxLat = -23.50;
-    const minLng = -46.70;
-    const maxLng = -46.60;
+    let minLat = -23.60;
+    let maxLat = -23.50;
+    let minLng = -46.70;
+    let maxLng = -46.60;
+
+    // Check if coordinates belong to another city (out of SP bounds)
+    if (origemCoords && destinoCoords) {
+      const allCoords = [origemCoords, destinoCoords];
+      if (driverCoords) allCoords.push(driverCoords);
+
+      const lats = allCoords.map(c => c.lat);
+      const lngs = allCoords.map(c => c.lng);
+
+      const maxL = Math.max(...lats);
+      const minL = Math.min(...lats);
+      const maxG = Math.max(...lngs);
+      const minG = Math.min(...lngs);
+
+      // If out of standard SP bounds, recalculate bounding box dynamically
+      if (minL < -24 || maxL > -23 || minG < -47 || maxG > -46) {
+        const latSpan = Math.abs(maxL - minL) || 0.05;
+        const lngSpan = Math.abs(maxG - minG) || 0.05;
+
+        // Apply 20% defensive padding so markers fit cleanly on the stage
+        minLat = minL - latSpan * 0.2;
+        maxLat = maxL + latSpan * 0.2;
+        minLng = minG - lngSpan * 0.2;
+        maxLng = maxG + lngSpan * 0.2;
+      }
+    }
 
     const x = ((lng - minLng) / (maxLng - minLng)) * MAP_WIDTH;
     const y = MAP_HEIGHT - ((lat - minLat) / (maxLat - minLat)) * MAP_HEIGHT; // invert y

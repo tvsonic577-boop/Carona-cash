@@ -58,6 +58,7 @@ import {
 } from './data';
 
 import SimulatedMap from './components/SimulatedMap';
+import { CaronaLogo } from './components/CaronaLogo';
 
 const memoryStorage: { [key: string]: string } = {};
 
@@ -86,6 +87,36 @@ const safeStorage = {
 };
 
 const localStorage = safeStorage;
+
+const BRAZILIAN_STATES = [
+  { sigla: 'GO', nome: 'Goiás' },
+  { sigla: 'SP', nome: 'São Paulo' },
+  { sigla: 'RJ', nome: 'Rio de Janeiro' },
+  { sigla: 'MG', nome: 'Minas Gerais' },
+  { sigla: 'AC', nome: 'Acre' },
+  { sigla: 'AL', nome: 'Alagoas' },
+  { sigla: 'AM', nome: 'Amazonas' },
+  { sigla: 'AP', nome: 'Amapá' },
+  { sigla: 'BA', nome: 'Bahia' },
+  { sigla: 'CE', nome: 'Ceará' },
+  { sigla: 'DF', nome: 'Distrito Federal' },
+  { sigla: 'ES', nome: 'Espírito Santo' },
+  { sigla: 'MA', nome: 'Maranhão' },
+  { sigla: 'MS', nome: 'Mato Grosso do Sul' },
+  { sigla: 'MT', nome: 'Mato Grosso' },
+  { sigla: 'PA', nome: 'Pará' },
+  { sigla: 'PB', nome: 'Paraíba' },
+  { sigla: 'PE', nome: 'Pernambuco' },
+  { sigla: 'PI', nome: 'Piauí' },
+  { sigla: 'PR', nome: 'Paraná' },
+  { sigla: 'RN', nome: 'Rio Grande do Norte' },
+  { sigla: 'RO', nome: 'Rondônia' },
+  { sigla: 'RR', nome: 'Roraima' },
+  { sigla: 'RS', nome: 'Rio Grande do Sul' },
+  { sigla: 'SC', nome: 'Santa Catarina' },
+  { sigla: 'SE', nome: 'Sergipe' },
+  { sigla: 'TO', nome: 'Tocantins' }
+];
 
 export default function App() {
   // --- Persistent State Simulation ---
@@ -141,7 +172,14 @@ export default function App() {
     const saved = localStorage.getItem('cc_cidades');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as CidadeAtendida[];
+        const merged = [...parsed];
+        INITIAL_CIDADES.forEach(initial => {
+          if (!merged.some(c => c.nome.toLowerCase() === initial.nome.toLowerCase() && c.estado === initial.estado)) {
+            merged.push(initial);
+          }
+        });
+        return merged;
       } catch (e) {
         return INITIAL_CIDADES;
       }
@@ -274,6 +312,15 @@ export default function App() {
 
   // --- Client Portal Variables ---
   const [clientOrigin, setClientOrigin] = useState<string>('Avenida Paulista, 1000 - Bela Vista');
+
+  useEffect(() => {
+    const cli = clientes.find(c => c.id === activeClienteId);
+    if (cli) {
+      setClientOrigin(cli.endereco || 'Centro');
+      setSelectedDestinationIndex(-1);
+    }
+  }, [activeClienteId, clientes]);
+
   const [isEditingClientProfile, setIsEditingClientProfile] = useState(false);
   const [clientFormNome, setClientFormNome] = useState('');
   const [clientFormEmail, setClientFormEmail] = useState('');
@@ -323,12 +370,50 @@ export default function App() {
     valor: number;
   } | null>(null);
 
-  const popularDestinations = [
-    { nome: 'Av. Brigadeiro Faria Lima, 2232 - Itaim Bibi', coords: { lat: -23.5824, lng: -46.6868 }, distance: 5.8 },
-    { nome: 'Rua Augusta, 450 - Consolação', coords: { lat: -23.5505, lng: -46.6579 }, distance: 1.8 },
-    { nome: 'Parque Ibirapuera - Moema', coords: { lat: -23.5874, lng: -46.6576 }, distance: 4.1 },
-    { nome: 'Aeroporto de Congonhas - Vila Congonhas', coords: { lat: -23.6273, lng: -46.6565 }, distance: 8.5 },
-  ];
+  const getPopularDestinationsForCity = (cityName: string) => {
+    const cityLower = (cityName || '').toLowerCase();
+    if (cityLower.includes('itaberai') || cityLower.includes('itaberaí') || cityLower.includes('goiás') || cityLower.includes('go')) {
+      return [
+        { nome: 'Praça Senador Silva Canedo - Centro', coords: { lat: -16.0232, lng: -49.8080 }, distance: 2.1 },
+        { nome: 'Lago Municipal de Itaberaí - Parque', coords: { lat: -16.0315, lng: -49.8142 }, distance: 3.5 },
+        { nome: 'Parque Ecológico de Itaberaí - Natureza', coords: { lat: -16.0150, lng: -49.8010 }, distance: 4.8 },
+        { nome: 'Terminal Rodoviário de Itaberaí', coords: { lat: -16.0270, lng: -49.8095 }, distance: 1.5 },
+      ];
+    } else if (cityLower.includes('rio de janeiro') || cityLower.includes('rj')) {
+      return [
+        { nome: 'Copacabana - Posto 4', coords: { lat: -22.9698, lng: -43.1855 }, distance: 6.2 },
+        { nome: 'Pão de Açúcar - Urca', coords: { lat: -22.9492, lng: -43.1546 }, distance: 8.5 },
+        { nome: 'Cristo Redentor - Corcovado', coords: { lat: -22.9519, lng: -43.2105 }, distance: 12.0 },
+        { nome: 'Aeroporto Santos Dumont - Centro', coords: { lat: -22.9103, lng: -43.1629 }, distance: 4.5 },
+      ];
+    } else if (cityLower.includes('campinas')) {
+      return [
+        { nome: 'Parque Portugal (Taquaral)', coords: { lat: -22.8752, lng: -47.0421 }, distance: 5.1 },
+        { nome: 'Cambuí - Shopping', coords: { lat: -22.8953, lng: -47.0512 }, distance: 3.2 },
+        { nome: 'Aeroporto de Viracopos', coords: { lat: -23.0074, lng: -47.1345 }, distance: 15.6 },
+        { nome: 'Barão Geraldo - UNICAMP', coords: { lat: -22.8173, lng: -47.0697 }, distance: 10.4 },
+      ];
+    } else if (cityLower.includes('belo horizonte') || cityLower.includes('bh')) {
+      return [
+        { nome: 'Lagoa da Pampulha - Igreja', coords: { lat: -19.8519, lng: -43.9792 }, distance: 9.8 },
+        { nome: 'Praça da Liberdade - Savassi', coords: { lat: -19.9324, lng: -43.9378 }, distance: 3.0 },
+        { nome: 'Mercado Central - Centro', coords: { lat: -19.9231, lng: -43.9439 }, distance: 1.8 },
+        { nome: 'Estádio Mineirão', coords: { lat: -19.8659, lng: -43.9711 }, distance: 8.2 },
+      ];
+    } else {
+      // Default / São Paulo
+      return [
+        { nome: 'Av. Brigadeiro Faria Lima, 2232 - Itaim Bibi', coords: { lat: -23.5824, lng: -46.6868 }, distance: 5.8 },
+        { nome: 'Rua Augusta, 450 - Consolação', coords: { lat: -23.5505, lng: -46.6579 }, distance: 1.8 },
+        { nome: 'Parque Ibirapuera - Moema', coords: { lat: -23.5874, lng: -46.6576 }, distance: 4.1 },
+        { nome: 'Aeroporto de Congonhas - Vila Congonhas', coords: { lat: -23.6273, lng: -46.6565 }, distance: 8.5 },
+      ];
+    }
+  };
+
+  const clientObjForDest = clientes.find(c => c.id === activeClienteId);
+  const currentPassengerCity = clientObjForDest ? clientObjForDest.cidade : 'São Paulo';
+  const popularDestinations = getPopularDestinationsForCity(currentPassengerCity);
 
   // --- Form Registration Variables ---
   const [registrationMode, setRegistrationMode] = useState<'NONE' | 'CLIENTE' | 'MOTORISTA'>('NONE');
@@ -377,7 +462,43 @@ export default function App() {
 
   // --- Admin Add City Variables ---
   const [newCityName, setNewCityName] = useState('');
-  const [newCityState, setNewCityState] = useState('SP');
+  const [newCityState, setNewCityState] = useState('GO');
+  const [ibgeCities, setIbgeCities] = useState<string[]>([]);
+  const [loadingIbge, setLoadingIbge] = useState<boolean>(false);
+  const [citySearchQuery, setCitySearchQuery] = useState<string>('');
+
+  useEffect(() => {
+    if (!newCityState) return;
+    setLoadingIbge(true);
+    setIbgeCities([]);
+    
+    fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${newCityState}/municipios`)
+      .then(res => {
+        if (!res.ok) throw new Error("Erro de API");
+        return res.json();
+      })
+      .then((data: any[]) => {
+        const sortedNames = data.map(item => item.nome).sort((a, b) => a.localeCompare(b));
+        setIbgeCities(sortedNames);
+      })
+      .catch(err => {
+        console.warn("IBGE API fallback triggered:", err);
+        const fallbacks: { [key: string]: string[] } = {
+          'GO': ['Itaberaí', 'Goiânia', 'Anápolis', 'Aparecida de Goiânia', 'Rio Verde', 'Luziânia', 'Águas Lindas de Goiás', 'Trindade', 'Formosa', 'Senador Canedo', 'Catalão', 'Itumbiara', 'Jataí', 'Caldas Novas', 'Planaltina'],
+          'SP': ['São Paulo', 'Campinas', 'Santos', 'Sorocaba', 'São José dos Campos', 'Ribeirão Preto', 'Osasco', 'Santo André', 'São Bernardo do Campo', 'Guarulhos', 'Mogi das Cruzes', 'Jundiaí', 'Piracicaba'],
+          'RJ': ['Rio de Janeiro', 'Niterói', 'Duque de Caxias', 'Petrópolis', 'Campos dos Goytacazes', 'Volta Redonda', 'Macaé', 'Cabo Frio', 'Nova Iguaçu', 'Belford Roxo', 'São Gonçalo'],
+          'MG': ['Belo Horizonte', 'Uberlândia', 'Contagem', 'Juiz de Fora', 'Betim', 'Montes Claros', 'Uberaba', 'Governador Valadares', 'Ipatinga', 'Sete Lagoas', 'Divinópolis', 'Poços de Caldas'],
+          'PR': ['Curitiba', 'Londrina', 'Maringá', 'Ponta Grossa', 'Cascavel', 'São José dos Pinhais', 'Foz do Iguaçu', 'Colombo', 'Guarapuava', 'Paranaguá'],
+          'RS': ['Porto Alegre', 'Caxias do Sul', 'Canoas', 'Pelotas', 'Santa Maria', 'Gravataí', 'Viamão', 'Novo Hamburgo', 'Passo Fundo', 'Rio Grande'],
+          'CE': ['Fortaleza', 'Caucaia', 'Juazeiro do Norte', 'Maracanaú', 'Sobral', 'Crato', 'Itapipoca', 'Maranguape', 'Iguatu'],
+          'BA': ['Salvador', 'Feira de Santana', 'Vitória da Conquista', 'Camaçari', 'Juazeiro', 'Itabuna', 'Lauro de Freitas', 'Ilhéus', 'Jequié', 'Teixeira de Freitas']
+        };
+        setIbgeCities(fallbacks[newCityState] || ['Outra Cidade']);
+      })
+      .finally(() => {
+        setLoadingIbge(false);
+      });
+  }, [newCityState]);
 
   // --- Notification System ---
   const [notifications, setNotifications] = useState<{ id: string; text: string; type: 'success' | 'info' | 'warn' }[]>([]);
@@ -437,6 +558,18 @@ export default function App() {
 
     const value = calculatedTrip ? calculatedTrip.valor : 7.00;
 
+    const currentCityLower = (cli.cidade || '').toLowerCase();
+    let computedOriginCoords = { lat: -23.5615, lng: -46.6562 };
+    if (currentCityLower.includes('itaberai') || currentCityLower.includes('itaberaí') || currentCityLower.includes('goiás') || currentCityLower.includes('go')) {
+      computedOriginCoords = { lat: -16.0270, lng: -49.8095 };
+    } else if (currentCityLower.includes('rio') || currentCityLower.includes('rj')) {
+      computedOriginCoords = { lat: -22.9068, lng: -43.1729 };
+    } else if (currentCityLower.includes('campinas')) {
+      computedOriginCoords = { lat: -22.9056, lng: -47.0608 };
+    } else if (currentCityLower.includes('belo') || currentCityLower.includes('bh')) {
+      computedOriginCoords = { lat: -19.9167, lng: -43.9345 };
+    }
+
     const newCorrida: Corrida = {
       id: 'cr-' + Date.now() + '-' + Math.floor(Math.random() * 1000000),
       clienteId: activeClienteId,
@@ -444,7 +577,7 @@ export default function App() {
       clienteTelefone: users.find(u => u.id === cli.userId)?.telefone || '(11) 99999-0000',
       origem: clientOrigin,
       destino: dest.nome,
-      origemCoords: { lat: -23.5615, lng: -46.6562 }, // Av Paulista
+      origemCoords: computedOriginCoords,
       destinoCoords: dest.coords,
       distancia: dest.distance,
       duracao: calculatedTrip?.duracao || 10,
@@ -518,7 +651,7 @@ export default function App() {
       }
       return c;
     }));
-    addNotification("Corrida de transporte finalizada! Obrigado por dirigir com Carona Cash.", "success");
+    addNotification("Corrida de transporte finalizada! Obrigado por dirigir com Carona.", "success");
   };
 
   // Client or driver cancels active request
@@ -942,21 +1075,64 @@ export default function App() {
   const handleDeleteMotorista = (motId: string) => {
     const targetMot = motoristas.find(m => m.id === motId);
     if (!targetMot) return;
-    const driverName = users.find(u => u.id === targetMot.userId)?.nome || 'Motorista';
+    const targetUser = users.find(u => u.id === targetMot.userId);
+    const driverName = targetUser?.nome || 'Motorista';
+    const driverEmail = targetUser?.email || '';
     
     // Remove motorista and core user
     setMotoristas(prev => prev.filter(m => m.id !== motId));
     setUsers(prev => prev.filter(u => u.id !== targetMot.userId));
+
+    // Handle session context updates safely so the app can continue seamlessly
+    if (activeMotoristaId === motId) {
+      const remainingMots = motoristas.filter(m => m.id !== motId);
+      if (remainingMots.length > 0) {
+        setActiveMotoristaId(remainingMots[0].id);
+      } else {
+        setActiveMotoristaId('');
+      }
+    }
+
+    if (loggedInEmail && driverEmail && loggedInEmail.toLowerCase() === driverEmail.toLowerCase()) {
+      if (sessionRole === 'MOTORISTA') {
+        setIsLoggedIn(false);
+        setLoggedInEmail('');
+        setSessionRole('CLIENTE');
+        setActivePortal('CLIENTE');
+      }
+    }
+
     addNotification(`Cadastro do motorista "${driverName}" excluído do banco de dados!`, "success");
   };
 
   const handleDeleteCliente = (userId: string) => {
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
+    const clientEmail = targetUser.email;
     
     // Remove client and core user
     setClientes(prev => prev.filter(c => c.userId !== userId));
     setUsers(prev => prev.filter(u => u.id !== userId));
+
+    const clickedClient = clientes.find(c => c.userId === userId);
+    if (clickedClient && activeClienteId === clickedClient.id) {
+      const remainingClis = clientes.filter(c => c.userId !== userId);
+      if (remainingClis.length > 0) {
+        setActiveClienteId(remainingClis[0].id);
+      } else {
+        setActiveClienteId('');
+      }
+    }
+
+    if (loggedInEmail && clientEmail && loggedInEmail.toLowerCase() === clientEmail.toLowerCase()) {
+      if (sessionRole === 'CLIENTE') {
+        setIsLoggedIn(false);
+        setLoggedInEmail('');
+        setSessionRole('CLIENTE');
+        setActivePortal('CLIENTE');
+      }
+    }
+
     addNotification(`Cadastro do passageiro "${targetUser.nome}" excluído do banco de dados!`, "success");
   };
 
@@ -1060,12 +1236,10 @@ export default function App() {
           
           {/* INFO SIDEBAR SECTION */}
           <div className="lg:col-span-5 flex flex-col justify-center space-y-6 text-center lg:text-left">
-            <div className="flex items-center gap-3.5 justify-center lg:justify-start">
-              <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center font-black text-2xl text-emerald-950 shadow-xl shadow-emerald-500/30 shrink-0">
-                CC
-              </div>
+            <div className="flex items-center gap-4.5 justify-center lg:justify-start">
+              <CaronaLogo className="w-16 h-16" />
               <div>
-                <h1 className="font-extrabold text-2xl tracking-tight text-white leading-none">CARONA CASH</h1>
+                <h1 className="font-extrabold text-3xl tracking-tight text-white leading-none">CARONA</h1>
                 <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1">Sua Mobilidade Regional</p>
               </div>
             </div>
@@ -1490,12 +1664,13 @@ export default function App() {
 
       {/* GORGEOUS HIGH-DENSITY SIDEBAR */}
       <aside className="w-full md:w-64 bg-emerald-950 text-white flex flex-col flex-shrink-0 border-b md:border-b-0 md:border-r border-emerald-900/40 shrink-0" id="carona-sidebar">
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xl text-emerald-950 shadow-lg shadow-emerald-500/20 shrink-0">
-            CC
-          </div>
+        <div className="p-6 flex items-center gap-3.5">
+          <CaronaLogo 
+            className="w-12 h-12" 
+            animated={activePortal === 'CLIENTE'} 
+          />
           <div>
-            <h1 className="font-bold text-base leading-tight tracking-tight text-white">CARONA CASH</h1>
+            <h1 className="font-extrabold text-lg leading-tight tracking-tight text-white">CARONA</h1>
             {activePortal === 'ADMIN' ? (
               <p className="text-[10px] text-emerald-400 font-medium uppercase tracking-widest">Admin Master</p>
             ) : activePortal === 'CLIENTE' ? (
@@ -1890,9 +2065,9 @@ export default function App() {
                     ))}
                   </select>
                 </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800 text-xs font-bold">CC</div>
-                  <span className="text-xs text-slate-500">Sua conta será ativada imediatamente após cadastro!</span>
+                <div className="flex items-center gap-2.5 mt-2">
+                  <CaronaLogo className="w-12 h-12" animated={true} />
+                  <span className="text-xs font-semibold text-slate-600">Sua conta Carona será ativada imediatamente após cadastro!</span>
                 </div>
 
                 <div className="md:col-span-2 flex justify-end gap-2 mt-4 border-t border-gray-100 pt-4">
@@ -2073,7 +2248,7 @@ export default function App() {
 
                 <div>
                   <h3 className="text-xs font-extrabold uppercase text-emerald-700 tracking-wider border-b pb-1">3. Uploads de Documentos e Carro Obrigatórios</h3>
-                  <p className="text-[10px] text-zinc-500 mt-1">Carona Cash preza pelo prestígio dos usuários e requer verificação visual minuciosa.</p>
+                  <p className="text-[10px] text-zinc-500 mt-1">Carona preza pelo prestígio dos usuários e requer verificação visual minuciosa.</p>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mt-3">
                     {/* DOC 1 */}
@@ -2477,7 +2652,7 @@ export default function App() {
               <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative">
                 <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
                   <MapPin className="text-emerald-700" size={18} />
-                  Solicitar Corrida Carona Cash
+                  Solicitar Corrida Carona
                 </h3>
 
                 <div className="space-y-4">
@@ -2791,7 +2966,7 @@ export default function App() {
                             <span>Pague para começar a dirigir!</span>
                           </div>
                           <p className="text-[11px] text-rose-700 mt-1">
-                            Sua licença mensal do Carona Cash precisa ser ativada por Pix para liberar o recebimento de corridas locais.
+                            Sua licença mensal do Carona precisa ser ativada por Pix para liberar o recebimento de corridas locais.
                           </p>
                           <button
                             onClick={() => {
@@ -3794,10 +3969,10 @@ export default function App() {
                             </div>
 
                             {/* Core actions for pending payment */}
-                            <div className="mt-4 flex gap-2 pt-3 border-t border-slate-100">
+                            <div className="mt-4 flex gap-2 pt-3 border-t border-slate-100 flex-wrap">
                               <button
                                 onClick={() => handleToggleSubscriptionPaid(m.id)}
-                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                className="flex-1 min-w-[90px] bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
                                 title="Aprovar e ativar licença do motorista"
                               >
                                 <Check size={12} />
@@ -3810,10 +3985,23 @@ export default function App() {
                                   navigator.clipboard.writeText(textMsg);
                                   addNotification(`Mensagem de cobrança copiada! Envie para ${userObj?.telefone}`, 'success');
                                 }}
-                                className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold py-2 px-2 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                className="flex-grow min-w-[100px] bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold py-2 px-2 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
                                 title="Copiar mensagem para cobrar via WhatsApp"
                               >
                                 Cobrar WhatsApp
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Tem certeza de que deseja EXCLUIR permanentemente o cadastro de ${userObj?.nome || 'este motorista'}? Esta ação removerá o motorista e o usuário do banco de dados.`)) {
+                                    handleDeleteMotorista(m.id);
+                                  }
+                                }}
+                                className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                title="Excluir motorista permanentemente do banco de dados"
+                              >
+                                <Trash2 size={12} />
+                                Excluir
                               </button>
                             </div>
                           </div>
@@ -4041,7 +4229,12 @@ export default function App() {
                                   if (window.confirm(`Tem certeza de que deseja EXCLUIR permanentemente o cadastro de ${u.nome}? Esta ação é irreversível.`)) {
                                     if (u.tipo === 'MOTORISTA') {
                                       const mot = motoristas.find(m => m.userId === u.id);
-                                      if (mot) handleDeleteMotorista(mot.id);
+                                      if (mot) {
+                                        handleDeleteMotorista(mot.id);
+                                      } else {
+                                        setUsers(prev => prev.filter(usr => usr.id !== u.id));
+                                        addNotification(`Usuário "${u.nome}" excluído do banco de dados!`, "success");
+                                      }
                                     } else {
                                       handleDeleteCliente(u.id);
                                     }
@@ -4609,10 +4802,15 @@ export default function App() {
                         required
                         value={newFranCidade}
                         onChange={e => setNewFranCidade(e.target.value)}
-                        className="w-full p-2 border rounded bg-white text-xs text-slate-800 font-semibold"
+                        className="w-full p-2 border rounded bg-white text-xs text-slate-800 font-semibold text-emerald-950 focus:ring-2 focus:ring-emerald-700"
                       >
                         <option value="">Selecione uma Cidade...</option>
-                        {cidades.map(c => (
+                        {cidades.slice().sort((a, b) => {
+                          const pA = a.nome.toLowerCase() === 'itaberaí' ? -2 : (a.estado === 'GO' ? -1 : 0);
+                          const pB = b.nome.toLowerCase() === 'itaberaí' ? -2 : (b.estado === 'GO' ? -1 : 0);
+                          if (pA !== pB) return pA - pB;
+                          return a.nome.localeCompare(b.nome);
+                        }).map(c => (
                           <option key={c.id} value={c.nome}>{c.nome} ({c.estado})</option>
                         ))}
                       </select>
@@ -4704,8 +4902,13 @@ export default function App() {
                                   onChange={e => setEditingFranqueadoData(prev => prev ? { ...prev, cidade: e.target.value } : null)}
                                   className="p-1 text-[10px] border rounded bg-white w-full text-slate-700 font-semibold"
                                 >
-                                  {cidades.map(c => (
-                                    <option key={c.id} value={c.nome}>{c.nome}</option>
+                                  {cidades.slice().sort((a, b) => {
+                                    const pA = a.nome.toLowerCase() === 'itaberaí' ? -2 : (a.estado === 'GO' ? -1 : 0);
+                                    const pB = b.nome.toLowerCase() === 'itaberaí' ? -2 : (b.estado === 'GO' ? -1 : 0);
+                                    if (pA !== pB) return pA - pB;
+                                    return a.nome.localeCompare(b.nome);
+                                  }).map(c => (
+                                    <option key={c.id} value={c.nome}>{c.nome} ({c.estado})</option>
                                   ))}
                                 </select>
                               </div>
@@ -4958,40 +5161,155 @@ export default function App() {
               </div>
 
               {/* Supported Cities list manager */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm" id="admin-cities-list-manager-card">
                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
                   <Map size={18} className="text-emerald-700" />
                   Gerenciar Cidades Atendidas
                 </h3>
 
-                <form onSubmit={handleAddNewCity} className="flex gap-2 mb-4">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Adicionar Nova Cidade"
-                    value={newCityName}
-                    onChange={e => setNewCityName(e.target.value)}
-                    className="flex-grow p-2 text-xs rounded border bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                  <select
-                    value={newCityState}
-                    onChange={e => setNewCityState(e.target.value)}
-                    className="p-2 text-xs rounded border bg-white focus:outline-none"
-                  >
-                    <option value="SP">SP</option>
-                    <option value="RJ">RJ</option>
-                    <option value="MG">MG</option>
-                    <option value="PR">PR</option>
-                    <option value="RS">RS</option>
-                    <option value="CE">CE</option>
-                  </select>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:cursor-pointer hover:bg-emerald-800"
-                  >
-                    Adicionar
-                  </button>
-                </form>
+                <div className="space-y-4 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Selecione o Estado
+                      </label>
+                      <select
+                        value={newCityState}
+                        onChange={e => {
+                          setNewCityState(e.target.value);
+                          setNewCityName('');
+                          setCitySearchQuery('');
+                        }}
+                        className="w-full p-2.5 text-xs rounded border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-700 font-semibold text-slate-700"
+                      >
+                        {BRAZILIAN_STATES.map(st => (
+                          <option key={st.sigla} value={st.sigla}>
+                            {st.sigla} - {st.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Buscar Cidade ({newCityState})
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder={loadingIbge ? "Carregando real do IBGE..." : "Digitar para filtrar..."}
+                          value={citySearchQuery}
+                          disabled={loadingIbge}
+                          onChange={e => {
+                            setCitySearchQuery(e.target.value);
+                            setNewCityName(e.target.value);
+                          }}
+                          className="w-full p-2.5 pl-3 text-xs rounded border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-700 pr-8 text-slate-700 font-medium"
+                        />
+                        {loadingIbge && (
+                          <div className="absolute right-2.5 top-2.5 animate-spin w-4 h-4 border-2 border-emerald-700 border-t-transparent rounded-full"></div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Suggestion list of filtered municipalities from IBGE */}
+                  {citySearchQuery.trim() && !loadingIbge && (
+                    <div className="bg-slate-50 border rounded-lg p-2.5 max-h-48 overflow-y-auto space-y-1">
+                      <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5 flex justify-between items-center">
+                        <span>Cidades encontradas no IBGE ({newCityState}):</span>
+                        <span className="text-[8px] bg-slate-200 text-slate-600 px-1.5 rounded uppercase">oficial</span>
+                      </p>
+                      {(() => {
+                        const filtered = ibgeCities
+                          .filter(c => c.toLowerCase().includes(citySearchQuery.toLowerCase()))
+                          .slice(0, 10);
+                        
+                        if (filtered.length === 0) {
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewCityName(citySearchQuery);
+                                addNotification(`Usando entrada manual: ${citySearchQuery}`, "info");
+                              }}
+                              className="w-full text-left p-2.5 text-[11px] text-zinc-600 hover:bg-slate-200 rounded flex justify-between font-medium cursor-pointer"
+                            >
+                              <span>Adicionar "{citySearchQuery}" de forma manual</span>
+                              <span className="text-[9px] bg-slate-400 text-white rounded px-1.5 py-0.5">Criar Nova</span>
+                            </button>
+                          );
+                        }
+
+                        return filtered.map(cName => (
+                          <button
+                            type="button"
+                            key={cName}
+                            onClick={() => {
+                              setCitySearchQuery(cName);
+                              setNewCityName(cName);
+                            }}
+                            className={`w-full text-left p-2 text-xs rounded transition-all flex justify-between items-center cursor-pointer ${
+                              newCityName.toLowerCase() === cName.toLowerCase() 
+                                ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 shadow-sm' 
+                                : 'hover:bg-slate-100 text-zinc-700'
+                            }`}
+                          >
+                            <span>{cName}</span>
+                            <span className="text-[9px] text-zinc-400 font-semibold">{newCityState}</span>
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Status Indicator */}
+                  {!loadingIbge && ibgeCities.length > 0 && (
+                    <div className="flex items-center justify-between text-[10px] text-emerald-700 font-medium bg-emerald-50 px-2.5 py-1.5 rounded border border-emerald-100">
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                        {ibgeCities.length} cidades brasileiras mapeadas para o estado {newCityState}
+                      </span>
+                      <span className="text-[8px] bg-emerald-600 text-white px-1 py-0.5 rounded font-extrabold uppercase tracking-widest">
+                        IBGE ATIVO
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Action Add Button */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={!newCityName.trim()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (!newCityName.trim()) return;
+
+                        // Check duplicate
+                        if (cidades.some(c => c.nome.toLowerCase() === newCityName.trim().toLowerCase() && c.estado === newCityState)) {
+                          addNotification(`A cidade de ${newCityName} (${newCityState}) já está cadastrada!`, "warn");
+                          return;
+                        }
+
+                        const newCity: CidadeAtendida = {
+                          id: 'city-' + Date.now() + '-' + Math.floor(Math.random() * 1000000),
+                          nome: newCityName,
+                          estado: newCityState,
+                          status: 'ATIVO'
+                        };
+
+                        setCidades(prev => [...prev, newCity]);
+                        setNewCityName('');
+                        setCitySearchQuery('');
+                        addNotification(`Cidade de ${newCityName} (${newCityState}) adicionada e ativada com sucesso!`, "success");
+                      }}
+                      className="w-full py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    >
+                      <PlusCircle size={14} />
+                      Ativar e Integrar {newCityName || "[Escolha acima]"} ({newCityState})
+                    </button>
+                  </div>
+                </div>
 
                 <div className="space-y-2 max-h-56 overflow-y-auto">
                   {cidades.map(c => (
@@ -5003,10 +5321,10 @@ export default function App() {
                       <div className="flex gap-1">
                         <button
                           onClick={() => handleToggleCity(c.id)}
-                          className={`px-3 py-1 rounded text-[10px] font-bold ${
+                          className={`px-3 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
                             c.status === 'ATIVO' 
-                              ? 'bg-emerald-100 text-emerald-800' 
-                              : 'bg-zinc-200 text-zinc-500'
+                              ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' 
+                              : 'bg-zinc-200 text-zinc-500 hover:bg-zinc-350'
                           }`}
                         >
                           {c.status}
@@ -5192,6 +5510,18 @@ export default function App() {
                                 title={m.isSubscriptionPaid ? "Marcar assinatura como pendente" : "Marcar assinatura como paga/ativa"}
                               >
                                 {m.isSubscriptionPaid ? 'Remover Pagto' : 'Confirmar Pagto'}
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Tem certeza de que deseja EXCLUIR permanentemente o cadastro de ${userObj?.nome || 'este motorista'}? Esta ação removerá o motorista e o usuário do banco de dados.`)) {
+                                    handleDeleteMotorista(m.id);
+                                  }
+                                }}
+                                className="p-1 text-rose-600 hover:bg-rose-50 rounded border border-transparent hover:border-rose-200 cursor-pointer transition-all shrink-0"
+                                title="Excluir Motorista"
+                              >
+                                <Trash2 size={13} />
                               </button>
                             </div>
                           </td>
