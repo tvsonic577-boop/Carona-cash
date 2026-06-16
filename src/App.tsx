@@ -199,6 +199,7 @@ export default function App() {
   const [clientFormSenha, setClientFormSenha] = useState('');
 
   // --- Admin User Database management States ---
+  const [adminSubTab, setAdminSubTab] = useState<'OPCAO_1' | 'OPCAO_2' | 'AUDITORIA' | 'CONFIG_GERAL'>('AUDITORIA');
   const [adminUserSearchQuery, setAdminUserSearchQuery] = useState('');
   const [adminEditingUser, setAdminEditingUser] = useState<User | null>(null);
   const [adminFormNome, setAdminFormNome] = useState('');
@@ -209,6 +210,11 @@ export default function App() {
   const [adminFormCpf, setAdminFormCpf] = useState('');
   const [adminFormEndereco, setAdminFormEndereco] = useState('');
   const [adminFormCidade, setAdminFormCidade] = useState('');
+  const [adminFormVeiculoMarca, setAdminFormVeiculoMarca] = useState('');
+  const [adminFormVeiculoModelo, setAdminFormVeiculoModelo] = useState('');
+  const [adminFormVeiculoAno, setAdminFormVeiculoAno] = useState(2020);
+  const [adminFormVeiculoCor, setAdminFormVeiculoCor] = useState('');
+  const [adminFormVeiculoPlaca, setAdminFormVeiculoPlaca] = useState('');
   const [clientDestination, setClientDestination] = useState<string>('');
   const [selectedDestinationIndex, setSelectedDestinationIndex] = useState<number>(-1);
   const [calculatedTrip, setCalculatedTrip] = useState<{
@@ -519,11 +525,12 @@ export default function App() {
       return;
     }
 
-    // Checking upload documents status
-    if (!driverFileCnh || !driverFileAddress || !driverFileVFront) {
-      setValidationError("Envie os documentos e as fotos do carro obrigatórias para aprovação!");
-      return;
-    }
+    // Checking upload documents status - fallback to realistic mockups if not explicitly clicked
+    const finalCnh = driverFileCnh || 'https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=400';
+    const finalAddress = driverFileAddress || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400';
+    const finalVFront = driverFileVFront || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400';
+    const finalVLateral = driverFileVLateral || 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=400';
+    const finalVTraseira = driverFileVTraseira || 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=400';
 
     const newUserId = 'u-mot-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
     const newMotId = 'm-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
@@ -552,14 +559,14 @@ export default function App() {
         modelo: newDriverData.modelo || 'Confortável',
         ano: Number(newDriverData.ano),
         cor: newDriverData.cor || 'Preto',
-        placa: newDriverData.placa.toUpperCase()
+        placa: (newDriverData.placa || 'MOCK001').toUpperCase()
       },
       documentos: {
-        cnhFrente: driverFileCnh || 'CNH_MOCK_URL',
-        comprovanteEndereco: driverFileAddress || 'COMPROVANTE_MOCK_URL',
-        veiculoFrente: driverFileVFront || 'CAR_FRONT_MOCK_URL',
-        veiculoLateral: driverFileVLateral || 'CAR_LATERAL_MOCK_URL',
-        veiculoTraseira: driverFileVTraseira || 'CAR_REAR_MOCK_URL'
+        cnhFrente: finalCnh,
+        comprovanteEndereco: finalAddress,
+        veiculoFrente: finalVFront,
+        veiculoLateral: finalVLateral,
+        veiculoTraseira: finalVTraseira
       }
     };
 
@@ -712,9 +719,11 @@ export default function App() {
   const handleApproveDriverDocs = (motId: string, isApproved: boolean) => {
     setMotoristas(prev => prev.map(m => {
       if (m.id === motId) {
+        const canGoOnline = isApproved && m.isSubscriptionPaid;
         return {
           ...m,
-          documentoStatus: isApproved ? 'APROVADO' : 'REJEITADO'
+          documentoStatus: isApproved ? 'APROVADO' : 'REJEITADO',
+          isOnline: canGoOnline ? true : m.isOnline
         };
       }
       return m;
@@ -725,21 +734,24 @@ export default function App() {
     if (targetMot) {
       setUsers(prev => prev.map(u => {
         if (u.id === targetMot.userId) {
+          const bothOk = isApproved && targetMot.isSubscriptionPaid;
           return {
             ...u,
-            status: isApproved ? 'AGUARDANDO_PAGAMENTO' : 'PENDENTE_APROVACAO'
+            status: bothOk ? 'ATIVO' : (isApproved ? 'AGUARDANDO_PAGAMENTO' : 'PENDENTE_APROVACAO')
           };
         }
         return u;
       }));
-    }
 
-    addNotification(
-      isApproved 
-        ? "Documentos aprovados! O motorista agora precisa efetuar o pagamento da mensalidade de ativação."
-        : "Documentos reprovados e devolvidos.", 
-      isApproved ? "success" : "warn"
-    );
+      addNotification(
+        isApproved 
+          ? (targetMot.isSubscriptionPaid 
+              ? "Documentos aprovados e licença mensal OK! O motorista está regulamentado e ONLINE automaticamente!"
+              : "Documentos aprovados! O motorista agora precisa efetuar o pagamento da mensalidade de ativação.")
+          : "Documentos reprovados e devolvidos.", 
+        isApproved ? "success" : "warn"
+      );
+    }
   };
 
   const handleToggleSubscriptionPaid = (motId: string) => {
@@ -751,7 +763,12 @@ export default function App() {
 
     setMotoristas(prev => prev.map(m => {
       if (m.id === motId) {
-        return { ...m, isSubscriptionPaid: newPaidStatus };
+        const canGoOnline = newPaidStatus && m.documentoStatus === 'APROVADO';
+        return { 
+          ...m, 
+          isSubscriptionPaid: newPaidStatus,
+          isOnline: canGoOnline ? true : (newPaidStatus ? m.isOnline : false)
+        };
       }
       return m;
     }));
@@ -762,21 +779,24 @@ export default function App() {
         if (newPaidStatus) {
           if (targetMot.documentoStatus === 'APROVADO') {
             nextStatus = 'ATIVO';
+          } else {
+            nextStatus = 'PENDENTE_APROVACAO';
           }
         } else {
-          if (u.status === 'ATIVO') {
-            nextStatus = 'AGUARDANDO_PAGAMENTO';
-          }
+          nextStatus = 'AGUARDANDO_PAGAMENTO';
         }
         return { ...u, status: nextStatus };
       }
       return u;
     }));
 
-    addNotification(
-      `Mensalidade do motorista ${driverName} alterada para ${newPaidStatus ? 'PAGA / ATIVO' : 'PENDENTE'}!`,
-      newPaidStatus ? 'success' : 'warn'
-    );
+    const statusMsg = newPaidStatus 
+      ? (targetMot.documentoStatus === 'APROVADO'
+          ? `Mensalidade paga e documentos OK! O motorista ${driverName} foi ativado e está ONLINE automaticamente!`
+          : `Mensalidade do motorista ${driverName} paga, aguardando liberação de documentos.`)
+      : `Mensalidade do motorista ${driverName} pendente. O motorista foi colocado OFFLINE por segurança.`;
+
+    addNotification(statusMsg, newPaidStatus ? 'success' : 'warn');
   };
 
   const handleToggleBlockUser = (userId: string) => {
@@ -790,13 +810,39 @@ export default function App() {
     }));
   };
 
+  const handleDeleteMotorista = (motId: string) => {
+    const targetMot = motoristas.find(m => m.id === motId);
+    if (!targetMot) return;
+    const driverName = users.find(u => u.id === targetMot.userId)?.nome || 'Motorista';
+    
+    // Remove motorista and core user
+    setMotoristas(prev => prev.filter(m => m.id !== motId));
+    setUsers(prev => prev.filter(u => u.id !== targetMot.userId));
+    addNotification(`Cadastro do motorista "${driverName}" excluído do banco de dados!`, "success");
+  };
+
+  const handleDeleteCliente = (userId: string) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+    
+    // Remove client and core user
+    setClientes(prev => prev.filter(c => c.userId !== userId));
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    addNotification(`Cadastro do passageiro "${targetUser.nome}" excluído do banco de dados!`, "success");
+  };
+
   // Process Mock PIX monthly Payment release
   const handleConfirmPixPayment = () => {
     setPixPaidSuccessfully(true);
     setTimeout(() => {
       setMotoristas(prev => prev.map(m => {
         if (m.id === checkoutMotoristaId) {
-          return { ...m, isSubscriptionPaid: true };
+          const canGoOnline = m.documentoStatus === 'APROVADO';
+          return { 
+            ...m, 
+            isSubscriptionPaid: true,
+            isOnline: canGoOnline ? true : m.isOnline
+          };
         }
         return m;
       }));
@@ -805,15 +851,21 @@ export default function App() {
       if (targetMot) {
         setUsers(prev => prev.map(u => {
           if (u.id === targetMot.userId) {
-            return { ...u, status: 'ATIVO' as UserStatus };
+            const nextStatus = targetMot.documentoStatus === 'APROVADO' ? 'ATIVO' : 'PENDENTE_APROVACAO';
+            return { ...u, status: nextStatus as UserStatus };
           }
           return u;
         }));
+        
+        if (targetMot.documentoStatus === 'APROVADO') {
+          addNotification("Mensalidade de ativação confirmada por PIX! Seus documentos já constam como OK e você foi colocado ONLINE automaticamente!", "success");
+        } else {
+          addNotification("Mensalidade de ativação confirmada por PIX! Agora seu cadastro está aguardando apenas a aprovação dos documentos pelo administrador para entrar ONLINE.", "success");
+        }
       }
 
       setShowPixCheckout(false);
       setPixPaidSuccessfully(false);
-      addNotification("Assinatura mensal ativada com sucesso pelo PIX! Você já pode aceitar corridas.", "success");
     }, 1500);
   };
 
@@ -2474,9 +2526,32 @@ export default function App() {
                             {targetMot.isOnline ? 'Online' : 'Offline'}
                           </span>
                         </div>
+
+                        {targetMot.documentoStatus !== 'APROVADO' && (
+                          <div className="p-2.5 bg-amber-50 text-[10px] text-amber-800 border border-amber-200 rounded-lg flex flex-col gap-1">
+                            <span className="font-bold uppercase tracking-wider">⚠️ Documentação Pendente</span>
+                            <span>Sua CNH ou veículo estão em análise. Você precisa ter seus documentos aprovados para poder ficar <strong>ONLINE</strong>.</span>
+                          </div>
+                        )}
+
+                        {!targetMot.isSubscriptionPaid && (
+                          <div className="p-2.5 bg-rose-50 text-[10px] text-rose-800 border border-rose-200 rounded-lg flex flex-col gap-1">
+                            <span className="font-bold uppercase tracking-wider">⚠️ Mensalidade Suspensa</span>
+                            <span>Sua licença mensal precisa estar ativa para manter sua conta liberada. Realize o pagamento por Pix acima para poder ficar <strong>ONLINE</strong>.</span>
+                          </div>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => {
+                            if (targetMot.documentoStatus !== 'APROVADO') {
+                              addNotification("Seu cadastro está pendente de autorização pelo Administrador! Você só poderá ficar ONLINE após a liberação dos seus documentos no painel administrativo.", "warn");
+                              return;
+                            }
+                            if (!targetMot.isSubscriptionPaid) {
+                              addNotification("Sua licença mensal/mensalidade está pendente! Efetue o pagamento por Pix para liberar seu status ONLINE.", "warn");
+                              return;
+                            }
                             setMotoristas(prev => prev.map(m => {
                               if (m.id === targetMot.id) {
                                 const nextStatus = !m.isOnline;
@@ -2492,10 +2567,13 @@ export default function App() {
                             }));
                           }}
                           className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                            targetMot.isOnline
-                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                              : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
+                            (targetMot.documentoStatus !== 'APROVADO' || !targetMot.isSubscriptionPaid)
+                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                              : targetMot.isOnline
+                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
                           }`}
+                          disabled={targetMot.documentoStatus !== 'APROVADO' || !targetMot.isSubscriptionPaid}
                         >
                           {targetMot.isOnline ? '🔇 Ficar Offline (Folga)' : '🟢 Ficar Online (Trabalhar)'}
                         </button>
@@ -2767,8 +2845,73 @@ export default function App() {
 
             </div>
 
+            {/* BARRA DE SUBABAS INTERATIVAS (ADMIN) */}
+            <div className="bg-slate-100 p-2 rounded-2xl border border-slate-200 shadow-sm mb-4" id="admin-subtabs-controller">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setAdminSubTab('OPCAO_1'); setAdminUserSearchQuery(''); setAdminEditingUser(null); }}
+                  className={`py-3 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    adminSubTab === 'OPCAO_1'
+                      ? 'bg-emerald-700 text-white shadow font-extrabold scale-[1.01]'
+                      : 'bg-white text-slate-700 hover:bg-slate-200/50 border border-slate-200'
+                  }`}
+                >
+                  👤 Opção 1: Passageiros
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${adminSubTab === 'OPCAO_1' ? 'bg-emerald-900 text-white' : 'bg-slate-200 text-slate-800'}`}>
+                    {clientes.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setAdminSubTab('OPCAO_2'); setAdminUserSearchQuery(''); setAdminEditingUser(null); }}
+                  className={`py-3 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    adminSubTab === 'OPCAO_2'
+                      ? 'bg-emerald-700 text-white shadow font-extrabold scale-[1.01]'
+                      : 'bg-white text-slate-700 hover:bg-slate-200/50 border border-slate-200'
+                  }`}
+                >
+                  🚗 Opção 2: Motoristas
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${adminSubTab === 'OPCAO_2' ? 'bg-emerald-900 text-white' : 'bg-slate-200 text-slate-800'}`}>
+                    {motoristas.filter(m => m.documentoStatus === 'APROVADO').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setAdminSubTab('AUDITORIA'); setAdminUserSearchQuery(''); setAdminEditingUser(null); }}
+                  className={`py-3 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer relative ${
+                    adminSubTab === 'AUDITORIA'
+                      ? 'bg-emerald-700 text-white shadow font-extrabold scale-[1.01]'
+                      : 'bg-white text-slate-700 hover:bg-slate-200/50 border border-slate-200'
+                  }`}
+                >
+                  📄 Motoristas e Auditoria de Documentos
+                  {motoristas.filter(m => m.documentoStatus === 'PENDENTE').length > 0 && (
+                    <span className="bg-amber-400 text-slate-900 text-[9px] px-1.5 py-0.2 rounded font-extrabold animate-pulse">
+                      {motoristas.filter(m => m.documentoStatus === 'PENDENTE').length} PENDENTE
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setAdminSubTab('CONFIG_GERAL'); setAdminUserSearchQuery(''); setAdminEditingUser(null); }}
+                  className={`py-3 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    adminSubTab === 'CONFIG_GERAL'
+                      ? 'bg-emerald-700 text-white shadow font-extrabold scale-[1.01]'
+                      : 'bg-white text-slate-700 hover:bg-slate-200/50 border border-slate-200'
+                  }`}
+                >
+                  ⚙️ Configs & Franquias
+                </button>
+              </div>
+            </div>
+
             {/* JANELA DE MOTORISTAS COM MENSALIDADE PENDENTE */}
-            <div className="bg-white rounded-2xl border-2 border-amber-200 shadow-md p-5 hover:border-amber-300 transition-all" id="unpaid-license-pane animate-fade-in">
+            {adminSubTab === 'CONFIG_GERAL' && (
+              <div className="bg-white rounded-2xl border-2 border-amber-200 shadow-md p-5 hover:border-amber-300 transition-all font-sans" id="unpaid-license-pane animate-fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-3.5">
                   <div className="p-3.5 rounded-xl bg-amber-50 text-amber-600 shrink-0 border border-amber-200">
@@ -2891,18 +3034,22 @@ export default function App() {
                 </div>
               )}
             </div>
+            )}
 
             {/* GESTÃO GERAL E BUSCA DE USUÁRIOS NO BANCO DE DADOS (DADOS DO USUÁRIO & CPF) */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4" id="admin-user-management-panel">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
-                  <UserIcon size={18} className="text-emerald-700 shrink-0" />
-                  Gerenciador Geral de Usuários & CPFs (Banco de Dados)
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Pesquise por Nome, E-mail ou CPF para alterar diretamente senhas, e-mails, status e dados logísticos no sistema.
-                </p>
-              </div>
+            {(adminSubTab === 'OPCAO_1' || adminSubTab === 'OPCAO_2') && (
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 animate-fade-in" id="admin-user-management-panel">
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                    {adminSubTab === 'OPCAO_1' ? <UserIcon size={18} className="text-emerald-700 shrink-0" /> : <Car size={18} className="text-emerald-700 shrink-0" />}
+                    {adminSubTab === 'OPCAO_1' ? 'Opção 1: Gerenciador Central de Usuários e Cadastros (Todos)' : 'Opção 2: Gerenciador de Motoristas Licenciados (Aprovados)'}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {adminSubTab === 'OPCAO_1' 
+                      ? 'Relação de todos os cadastros no banco de dados. Atualize dados cadastrais, bloqueie, exclua ou libere contas de passageiros e motoristas.'
+                      : 'Veja todos os motoristas com status de documentos APROVADO. Atualize placas, veículos, redefina senhas, bloqueie, libere ou exclua cadastros.'}
+                  </p>
+                </div>
 
               {/* Busca de usuário */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
@@ -2938,6 +3085,10 @@ export default function App() {
                   {(() => {
                     const query = adminUserSearchQuery.trim().toLowerCase();
                     const matched = users.filter(u => {
+                      const linkedDriver = motoristas.find(m => m.userId === u.id);
+                      if (adminSubTab === 'OPCAO_1' && u.tipo === 'ADMIN') return false;
+                      if (adminSubTab === 'OPCAO_2' && (u.tipo !== 'MOTORISTA' || !linkedDriver || linkedDriver.documentoStatus !== 'APROVADO')) return false;
+
                       if (!query) return true; // Show all if empty query
 
                       const matchBasic = u.nome.toLowerCase().includes(query) || 
@@ -2950,7 +3101,6 @@ export default function App() {
                       if (linkedClient && linkedClient.cpf.includes(query)) return true;
 
                       // Check driver CPF
-                      const linkedDriver = motoristas.find(m => m.userId === u.id);
                       if (linkedDriver && linkedDriver.cpf.includes(query)) return true;
 
                       return false;
@@ -2995,6 +3145,20 @@ export default function App() {
                             setAdminFormEndereco(endVal);
                             setAdminFormCidade(cidVal);
 
+                            if (u.tipo === 'MOTORISTA' && driverObj) {
+                              setAdminFormVeiculoMarca(driverObj.veiculo.marca || '');
+                              setAdminFormVeiculoModelo(driverObj.veiculo.modelo || '');
+                              setAdminFormVeiculoAno(driverObj.veiculo.ano || 2020);
+                              setAdminFormVeiculoCor(driverObj.veiculo.cor || '');
+                              setAdminFormVeiculoPlaca(driverObj.veiculo.placa || '');
+                            } else {
+                              setAdminFormVeiculoMarca('');
+                              setAdminFormVeiculoModelo('');
+                              setAdminFormVeiculoAno(2020);
+                              setAdminFormVeiculoCor('');
+                              setAdminFormVeiculoPlaca('');
+                            }
+
                             // Load password using role lower/upper key
                             const mapRole = u.tipo === 'MOTORISTA' ? 'MOTORISTA' : (u.tipo === 'CLIENTE' ? 'CLIENTE' : 'ADMIN');
                             const passKey = `${u.email.toLowerCase()}-${mapRole}`;
@@ -3017,17 +3181,76 @@ export default function App() {
                             <div className="text-[10px] text-slate-500 font-mono">CPF: {userCpf}</div>
                           </div>
 
-                          <div className="text-right shrink-0 ml-2">
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold block mb-1 text-center ${
+                          <div className="text-right shrink-0 ml-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold block text-center ${
                               u.status === 'ATIVO' ? 'bg-emerald-100 text-emerald-800' :
                               u.status === 'BLOQUEADO' ? 'bg-rose-100 text-rose-800' :
                               u.status === 'PENDENTE_APROVACAO' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'
                             }`}>
                               {u.status}
                             </span>
-                            <span className="text-[10px] font-black text-emerald-700 hover:underline">
-                              Editar ⚙
-                            </span>
+                            
+                            <div className="flex gap-1 flex-wrap justify-end">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAdminEditingUser(u);
+                                  setAdminFormNome(u.nome);
+                                  setAdminFormEmail(u.email);
+                                  setAdminFormTelefone(u.telefone || '');
+                                  setAdminFormStatus(u.status);
+                                  setAdminFormCpf(clientObj ? clientObj.cpf : (driverObj ? driverObj.cpf : ''));
+                                  setAdminFormEndereco(clientObj ? clientObj.endereco : (driverObj ? driverObj.endereco : ''));
+                                  setAdminFormCidade(clientObj ? clientObj.cidade : (driverObj ? driverObj.cidade : ''));
+                                  
+                                  const mapRole = u.tipo === 'MOTORISTA' ? 'MOTORISTA' : (u.tipo === 'CLIENTE' ? 'CLIENTE' : 'ADMIN');
+                                  setAdminFormSenha(accountPasswords[`${u.email.toLowerCase()}-${mapRole}`] || 'senha123');
+                                }}
+                                className="px-1.5 py-0.5 bg-slate-105 hover:bg-slate-200 text-slate-700 rounded text-[9px] font-bold cursor-pointer transition-all"
+                                title="Editar dados cadastrais"
+                              >
+                                ⚙️ Editar
+                              </button>
+
+                              {u.status === 'BLOQUEADO' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleBlockUser(u.id)}
+                                  className="px-1.5 py-0.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded text-[9px] font-black cursor-pointer transition-all"
+                                  title="Liberar e reativar usuário"
+                                >
+                                  🟢 Liberar
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleBlockUser(u.id)}
+                                  className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded text-[9px] font-bold cursor-pointer transition-all"
+                                  title="Bloquear usuário"
+                                >
+                                  🚫 Bloquear
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm(`Tem certeza de que deseja EXCLUIR permanentemente o cadastro de ${u.nome}? Esta ação é irreversível.`)) {
+                                    if (u.tipo === 'MOTORISTA') {
+                                      const mot = motoristas.find(m => m.userId === u.id);
+                                      if (mot) handleDeleteMotorista(mot.id);
+                                    } else {
+                                      handleDeleteCliente(u.id);
+                                    }
+                                    if (adminEditingUser?.id === u.id) setAdminEditingUser(null);
+                                  }
+                                }}
+                                className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[9px] font-bold cursor-pointer transition-all"
+                                title="Excluir do Banco de Dados"
+                              >
+                                🗑️ Excluir
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -3090,7 +3313,19 @@ export default function App() {
                         } else if (adminEditingUser.tipo === 'MOTORISTA') {
                           setMotoristas(prev => prev.map(m => {
                             if (m.userId === targetId) {
-                              return { ...m, cpf: trimmedCpf, endereco: trimmedEndereco, cidade: trimmedCidade };
+                              return {
+                                ...m,
+                                cpf: trimmedCpf,
+                                endereco: trimmedEndereco,
+                                cidade: trimmedCidade,
+                                veiculo: {
+                                  marca: adminFormVeiculoMarca || m.veiculo.marca,
+                                  modelo: adminFormVeiculoModelo || m.veiculo.modelo,
+                                  ano: Number(adminFormVeiculoAno) || m.veiculo.ano,
+                                  cor: adminFormVeiculoCor || m.veiculo.cor,
+                                  placa: (adminFormVeiculoPlaca || m.veiculo.placa || '').toUpperCase()
+                                }
+                              };
                             }
                             return m;
                           }));
@@ -3204,6 +3439,67 @@ export default function App() {
                         </div>
                       )}
 
+                      {/* VEICULO INPUTS FOR MOTORISTAS */}
+                      {adminEditingUser.tipo === 'MOTORISTA' && (
+                        <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-2">
+                          <span className="font-extrabold text-[9px] text-emerald-800 uppercase tracking-widest block mb-1">
+                            🚗 Especificações do Veículo do Motorista
+                          </span>
+                          <div className="grid grid-cols-5 gap-1.5 text-slate-700">
+                            <div>
+                              <label className="block text-[8px] uppercase font-bold text-slate-500 mb-0.5">Marca</label>
+                              <input
+                                type="text"
+                                value={adminFormVeiculoMarca}
+                                onChange={e => setAdminFormVeiculoMarca(e.target.value)}
+                                className="w-full p-1 border rounded bg-white text-[10px]"
+                                placeholder="Fiat"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] uppercase font-bold text-slate-500 mb-0.5">Modelo</label>
+                              <input
+                                type="text"
+                                value={adminFormVeiculoModelo}
+                                onChange={e => setAdminFormVeiculoModelo(e.target.value)}
+                                className="w-full p-1 border rounded bg-white text-[10px]"
+                                placeholder="Puno"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] uppercase font-bold text-slate-500 mb-0.5">Ano</label>
+                              <input
+                                type="number"
+                                value={adminFormVeiculoAno || ''}
+                                onChange={e => setAdminFormVeiculoAno(Number(e.target.value))}
+                                className="w-full p-1 border rounded bg-white text-[10px]"
+                                placeholder="2018"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] uppercase font-bold text-slate-500 mb-0.5">Cor</label>
+                              <input
+                                type="text"
+                                value={adminFormVeiculoCor}
+                                onChange={e => setAdminFormVeiculoCor(e.target.value)}
+                                className="w-full p-1 border rounded bg-white text-[10px]"
+                                placeholder="Prata"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] uppercase font-bold text-slate-500 mb-0.5">Placa</label>
+                              <input
+                                type="text"
+                                value={adminFormVeiculoPlaca}
+                                onChange={e => setAdminFormVeiculoPlaca(e.target.value.toUpperCase())}
+                                className="w-full p-1 border rounded bg-white font-mono text-[10px]"
+                                placeholder="ABC1D23"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div>
                         <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Status Geral de Acesso (Login)</label>
                         <select
@@ -3250,9 +3546,12 @@ export default function App() {
               </div>
 
             </div>
+            )}
 
             {/* PLATFORM FRANCHISES DIVISION */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4" id="admin-franchise-management-pane">
+            {adminSubTab === 'CONFIG_GERAL' && (
+              <>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4" id="admin-franchise-management-pane">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -3832,9 +4131,12 @@ export default function App() {
               </div>
 
             </div>
+            </>
+            )}
 
             {/* MOTORISTAS APPROVAL & DOCUMENTS AUDIT LIST */}
-            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            {adminSubTab === 'AUDITORIA' && (
+              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-fade-in">
               <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
                 <UserCheck size={18} className="text-emerald-700" />
                 {adminUser?.nome || "Dono da Plataforma"}: Aprovação de Motoristas e Auditoria de Documentos
@@ -3960,9 +4262,11 @@ export default function App() {
                 </table>
               </div>
             </div>
+            )}
 
             {/* CLIENTS MANAGEMENT LIST */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {adminSubTab === 'CONFIG_GERAL' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
               
               {/* Clients management table */}
               <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
@@ -4050,6 +4354,7 @@ export default function App() {
               </div>
 
             </div>
+            )}
 
           </div>
         )}
@@ -4277,10 +4582,31 @@ export default function App() {
                                             <button
                                               onClick={() => {
                                                 setMotoristas(prev => prev.map(item => {
-                                                  if (item.id === m.id) return { ...item, documentoStatus: 'APROVADO' };
+                                                  if (item.id === m.id) {
+                                                    const sOnline = item.isSubscriptionPaid;
+                                                    return { 
+                                                      ...item, 
+                                                      documentoStatus: 'APROVADO',
+                                                      isOnline: sOnline ? true : item.isOnline
+                                                    };
+                                                  }
                                                   return item;
                                                 }));
-                                                addNotification(`Operador aprovou documentação CNH de ${userObj?.nome}!`, 'success');
+
+                                                setUsers(prev => prev.map(u => {
+                                                  if (u.id === m.userId) {
+                                                    return {
+                                                      ...u,
+                                                      status: m.isSubscriptionPaid ? 'ATIVO' : 'AGUARDANDO_PAGAMENTO'
+                                                    };
+                                                  }
+                                                  return u;
+                                                }));
+
+                                                const statusText = m.isSubscriptionPaid
+                                                  ? `Operador aprovou os de documentos e o motorista ${userObj?.nome || 'motorista'} está ONLINE automaticamente!`
+                                                  : `Operador aprovou documentação CNH de ${userObj?.nome || 'motorista'}. Resta pagar a mensalidade para poder ficar ONLINE!`;
+                                                addNotification(statusText, 'success');
                                               }}
                                               className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-sm cursor-pointer border-0"
                                             >
