@@ -287,6 +287,7 @@ export default function App() {
     }
     return {
       'tvsonic577@gmail.com-ADMIN': 'Jr990387',
+      'admin@carona.com.br-ADMIN': 'admin',
       'admin@caronacash.com.br-ADMIN': 'admin',
       'amanda.lima@gmail.com-CLIENTE': 'amanda',
       'carlos.du@yahoo.com.br-CLIENTE': 'carlos',
@@ -312,11 +313,15 @@ export default function App() {
 
   // --- Client Portal Variables ---
   const [clientOrigin, setClientOrigin] = useState<string>('Avenida Paulista, 1000 - Bela Vista');
+  const [clientCustomCoords, setClientCustomCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState<boolean>(false);
 
   useEffect(() => {
     const cli = clientes.find(c => c.id === activeClienteId);
     if (cli) {
-      setClientOrigin(cli.endereco || 'Centro');
+      if (!clientCustomCoords) {
+        setClientOrigin(cli.endereco || 'Centro');
+      }
       setSelectedDestinationIndex(-1);
     }
   }, [activeClienteId, clientes]);
@@ -511,11 +516,86 @@ export default function App() {
     }, 5000);
   };
 
-  // Auto calculate trip cost whenever settings or destination values adjust
+  // --- Accurate GPS Coordinates Distance calculator (Haversine Formula) ---
+  const getCoordinatesDistanceKm = (co1: { lat: number; lng: number }, co2: { lat: number; lng: number }) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (co2.lat - co1.lat) * Math.PI / 180;
+    const dLng = (co2.lng - co1.lng) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(co1.lat * Math.PI / 180) * Math.cos(co2.lat * Math.PI / 180) * 
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const getCityCenterCoords = (cityName: string) => {
+    const currentCityLower = (cityName || '').toLowerCase();
+    if (currentCityLower.includes('itaberai') || currentCityLower.includes('itaberaí') || currentCityLower.includes('goiás') || currentCityLower.includes('go')) {
+      return { lat: -16.0270, lng: -49.8095 };
+    } else if (currentCityLower.includes('rio') || currentCityLower.includes('rj')) {
+      return { lat: -22.9068, lng: -43.1729 };
+    } else if (currentCityLower.includes('campinas')) {
+      return { lat: -22.9056, lng: -47.0608 };
+    } else if (currentCityLower.includes('belo') || currentCityLower.includes('bh')) {
+      return { lat: -19.9167, lng: -43.9345 };
+    }
+    return { lat: -23.5615, lng: -46.6562 };
+  };
+
+  const triggerGeolocation = () => {
+    if (!navigator.geolocation) {
+      addNotification("Geolocalização não é suportada por este dispositivo.", "warn");
+      return;
+    }
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setClientCustomCoords({ lat: latitude, lng: longitude });
+        setClientOrigin("Sua Localização Atual");
+        setLocationLoading(false);
+        addNotification("Sua localização GPS atual foi detectada com sucesso e cadastrada no mapa!", "success");
+        
+        // Reverse Geocoding via Google Maps Geocoder if loaded, for human readable address
+        const g = (window as any).google;
+        if (g && g.maps && g.maps.Geocoder) {
+          const geocoder = new g.maps.Geocoder();
+          geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results: any, status: any) => {
+            if (status === 'OK' && results[0]) {
+              setClientOrigin(results[0].formatted_address);
+            }
+          });
+        }
+      },
+      (error) => {
+        console.error("Erro ao obter geolocalização:", error);
+        setLocationLoading(false);
+        addNotification("Não foi possível acessar seu GPS. Conceda permissões de localização nas configurações do seu navegador para apontar onde você está.", "info");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  // Auto-locate user when client portal is loaded
+  useEffect(() => {
+    if (isLoggedIn && sessionRole === 'CLIENTE') {
+      triggerGeolocation();
+    }
+  }, [isLoggedIn, sessionRole]);
+
+  // Auto calculate trip cost whenever settings, destinations, or custom GPS coordinates change
   useEffect(() => {
     if (selectedDestinationIndex >= 0) {
       const dest = popularDestinations[selectedDestinationIndex];
-      const dist = dest.distance;
+      
+      // High precision dynamic distance calculation based on live client location vs destination coords
+      let dist = dest.distance;
+      if (clientCustomCoords) {
+        dist = Number(getCoordinatesDistanceKm(clientCustomCoords, dest.coords).toFixed(1));
+        if (dist <= 0) dist = 0.5;
+      }
+      
       const calcDur = Math.round(dist * 2.8);
       
       // Cost formula standard
@@ -533,7 +613,7 @@ export default function App() {
     } else {
       setCalculatedTrip(null);
     }
-  }, [selectedDestinationIndex, config]);
+  }, [selectedDestinationIndex, config, clientCustomCoords]);
 
   // --- ACTIVE CORRIDA STATE HANDLERS ---
   const currentActiveCorrida = corridas.find(
@@ -558,17 +638,7 @@ export default function App() {
 
     const value = calculatedTrip ? calculatedTrip.valor : 7.00;
 
-    const currentCityLower = (cli.cidade || '').toLowerCase();
-    let computedOriginCoords = { lat: -23.5615, lng: -46.6562 };
-    if (currentCityLower.includes('itaberai') || currentCityLower.includes('itaberaí') || currentCityLower.includes('goiás') || currentCityLower.includes('go')) {
-      computedOriginCoords = { lat: -16.0270, lng: -49.8095 };
-    } else if (currentCityLower.includes('rio') || currentCityLower.includes('rj')) {
-      computedOriginCoords = { lat: -22.9068, lng: -43.1729 };
-    } else if (currentCityLower.includes('campinas')) {
-      computedOriginCoords = { lat: -22.9056, lng: -47.0608 };
-    } else if (currentCityLower.includes('belo') || currentCityLower.includes('bh')) {
-      computedOriginCoords = { lat: -19.9167, lng: -43.9345 };
-    }
+    const computedOriginCoords = clientCustomCoords || getCityCenterCoords(cli.cidade || 'São Paulo');
 
     const newCorrida: Corrida = {
       id: 'cr-' + Date.now() + '-' + Math.floor(Math.random() * 1000000),
@@ -1237,9 +1307,9 @@ export default function App() {
           {/* INFO SIDEBAR SECTION */}
           <div className="lg:col-span-5 flex flex-col justify-center space-y-6 text-center lg:text-left">
             <div className="flex items-center gap-4.5 justify-center lg:justify-start">
-              <CaronaLogo className="w-16 h-16" />
+              <CaronaLogo className="w-24 h-24" animated={true} />
               <div>
-                <h1 className="font-extrabold text-3xl tracking-tight text-white leading-none">CARONA</h1>
+                <h1 className="font-extrabold text-3.5xl tracking-tight text-white leading-none">CARONA</h1>
                 <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1">Sua Mobilidade Regional</p>
               </div>
             </div>
@@ -1666,11 +1736,11 @@ export default function App() {
       <aside className="w-full md:w-64 bg-emerald-950 text-white flex flex-col flex-shrink-0 border-b md:border-b-0 md:border-r border-emerald-900/40 shrink-0" id="carona-sidebar">
         <div className="p-6 flex items-center gap-3.5">
           <CaronaLogo 
-            className="w-12 h-12" 
+            className="w-16 h-16" 
             animated={activePortal === 'CLIENTE'} 
           />
           <div>
-            <h1 className="font-extrabold text-lg leading-tight tracking-tight text-white">CARONA</h1>
+            <h1 className="font-extrabold text-xl leading-tight tracking-tight text-white">CARONA</h1>
             {activePortal === 'ADMIN' ? (
               <p className="text-[10px] text-emerald-400 font-medium uppercase tracking-widest">Admin Master</p>
             ) : activePortal === 'CLIENTE' ? (
@@ -2066,8 +2136,8 @@ export default function App() {
                   </select>
                 </div>
                 <div className="flex items-center gap-2.5 mt-2">
-                  <CaronaLogo className="w-12 h-12" animated={true} />
-                  <span className="text-xs font-semibold text-slate-600">Sua conta Carona será ativada imediatamente após cadastro!</span>
+                  <CaronaLogo className="w-16 h-16" animated={true} />
+                  <span className="text-xs font-semibold text-slate-650">Sua conta Carona será ativada imediatamente após cadastro!</span>
                 </div>
 
                 <div className="md:col-span-2 flex justify-end gap-2 mt-4 border-t border-gray-100 pt-4">
@@ -2660,13 +2730,24 @@ export default function App() {
                   <div>
                     <label className="block text-[10px] font-bold text-gray-500 uppercase">Partida atual (GPS)</label>
                     <div className="flex gap-2 mt-1">
-                      <input
-                        type="text"
-                        value={clientOrigin}
-                        onChange={(e) => setClientOrigin(e.target.value)}
-                        placeholder="Origem"
-                        className="w-full text-xs px-3 py-2 border rounded-lg bg-gray-50 text-slate-600 focus:outline-none"
-                      />
+                      <div className="relative w-full">
+                        <input
+                          type="text"
+                          value={clientOrigin}
+                          onChange={(e) => setClientOrigin(e.target.value)}
+                          placeholder="Origem"
+                          className="w-full text-xs pl-3 pr-10 py-2 border rounded-lg bg-gray-50 text-slate-600 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={triggerGeolocation}
+                          disabled={locationLoading}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 hover:bg-zinc-200/50 rounded-md text-emerald-700 disabled:opacity-50 transition cursor-pointer"
+                          title="Localizar de forma precisa via GPS"
+                        >
+                          <Navigation size={14} className={locationLoading ? 'animate-spin' : ''} />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -2732,7 +2813,7 @@ export default function App() {
                       disabled={selectedDestinationIndex < 0}
                       className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl text-sm shadow transition hover:cursor-pointer"
                     >
-                      Solicitar Corrida Cash 🚀
+                      Solicitar Carona 🚀
                     </button>
                   )}
                 </div>
@@ -2849,10 +2930,10 @@ export default function App() {
 
               {/* SIMULATED GPS MAP INTERFACE */}
               <SimulatedMap
-                origemCoords={currentActiveCorrida?.origemCoords}
-                destinoCoords={currentActiveCorrida?.destinoCoords}
-                origemNome={currentActiveCorrida?.origem ? currentActiveCorrida.origem.split(',')[0] : "Origem"}
-                destinoNome={currentActiveCorrida?.destino ? currentActiveCorrida.destino.split(',')[0] : "Destino"}
+                origemCoords={currentActiveCorrida?.origemCoords || (clientCustomCoords || getCityCenterCoords(currentPassengerCity))}
+                destinoCoords={currentActiveCorrida?.destinoCoords || (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex].coords : undefined)}
+                origemNome={currentActiveCorrida?.origem ? currentActiveCorrida.origem.split(',')[0] : (clientCustomCoords ? "Sua Localização" : "Origem")}
+                destinoNome={currentActiveCorrida?.destino ? currentActiveCorrida.destino.split(',')[0] : (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex].nome.split('-')[0] : "Destino")}
                 status={currentActiveCorrida?.status}
                 onArrivedAtOrigin={() => {
                   if (currentActiveCorrida && currentActiveCorrida.status === 'MOTORISTA_A_CAMINHO') {
@@ -3981,7 +4062,7 @@ export default function App() {
                               
                               <button
                                 onClick={() => {
-                                  const textMsg = `Olá ${userObj?.nome || 'Motorista'}, identificamos que a mensalidade de R$ ${config.taxaAtivacaoMotorista.toFixed(2)} referente à sua licença do Carona Cash está pendente. Por favor, regularize para manter sua conta ativa! Chave Pix: pix@caronacash.com.br`;
+                                  const textMsg = `Olá ${userObj?.nome || 'Motorista'}, identificamos que a mensalidade de R$ ${config.taxaAtivacaoMotorista.toFixed(2)} referente à sua licença do Carona está pendente. Por favor, regularize para manter sua conta ativa! Chave Pix: pix@carona.com.br`;
                                   navigator.clipboard.writeText(textMsg);
                                   addNotification(`Mensagem de cobrança copiada! Envie para ${userObj?.telefone}`, 'success');
                                 }}
@@ -5673,11 +5754,11 @@ export default function App() {
                     <div>
                       <h3 className="font-bold text-sm text-rose-900">ESTA FRANQUIA ENCONTRA-SE SUSPENSA / BLOQUEADA</h3>
                       <p className="text-xs mt-1 text-rose-700">
-                        O Administrador Master da marca <strong>Carona Cash</strong> desativou temporariamente a licença de operação para a cidade de <strong>{currentFran.cidade}</strong>. 
+                        O Administrador Master da marca <strong>Carona</strong> desativou temporariamente a licença de operação para a cidade de <strong>{currentFran.cidade}</strong>. 
                         Novos cadastros de motoristas e repasses estão suspensos.
                       </p>
                       <span className="block text-[10px] uppercase font-mono mt-2 tracking-wider text-rose-500">
-                        Por favor, realize o pagamento dos repasses acumulados ou entre em contato pelo e-mail pix@caronacash.com.br
+                        Por favor, realize o pagamento dos repasses acumulados ou entre em contato pelo e-mail pix@carona.com.br
                       </span>
                     </div>
                   </div>
@@ -5991,7 +6072,7 @@ export default function App() {
             <div className="border-b pb-4">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <ShieldCheck className="text-emerald-700" />
-                Carona Cash • Arquitetura de Produção SaaS
+                Carona • Arquitetura de Produção SaaS
               </h2>
               <p className="text-xs text-zinc-500 mt-1">
                 O projeto foi programado de acordo com as especificações solicitadas para funcionar perfeitamente na Hostinger e servidores Node.js.
@@ -6058,9 +6139,9 @@ export default function App() {
         </div> {/* CLOSE main-scrollable-canvas */}
 
         {/* FOOTER */}
-        <footer className="bg-zinc-900 py-6 text-xs text-center text-zinc-400 border-t border-zinc-800 shrink-0 mt-auto" id="carona-cash-footer">
+        <footer className="bg-zinc-900 py-6 text-xs text-center text-zinc-400 border-t border-zinc-800 shrink-0 mt-auto" id="carona-footer">
           <div className="max-w-7xl mx-auto px-4">
-            <p>© 2026 Carona Cash • Todos os direitos reservados. Preparado para escala de produção SaaS e hospedagem na Hostinger.</p>
+            <p>© 2026 Carona • Todos os direitos reservados. Preparado para escala de produção SaaS e hospedagem na Hostinger.</p>
             <p className="text-zinc-600 mt-1 font-mono">Plataforma desenvolvida com Node.js, Express, React, Tailwind CSS e Prisma PostgreSQL.</p>
           </div>
         </footer>
@@ -6098,7 +6179,7 @@ export default function App() {
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
                     "00020101021126580014br.gov.bcb.pix01362e19cb6d-8ca1-4ebc-bf95-952c4ce0a232520400005303986540" + 
-                    config.taxaAtivacaoMotorista.toFixed(2) + "5802BR5915CARONA_CASH_LTDA6009SAO_PAULO"
+                    config.taxaAtivacaoMotorista.toFixed(2) + "5802BR5915CARONA_LTDA6009SAO_PAULO"
                   )}`}
                   alt="Pix QR Code"
                   className="w-36 h-36 object-contain"
@@ -6107,7 +6188,7 @@ export default function App() {
 
               <div className="p-2 border rounded bg-slate-50 text-[10px] font-mono break-all text-slate-500 text-left relative group">
                 <div className="font-bold text-slate-700 block text-[9px] mb-0.5 uppercase">Código Pix Copia e Cola:</div>
-                pix-checkout-licenca-caronacash-4990-2026-prod-mercadopago-...
+                pix-checkout-licenca-carona-4990-2026-prod-mercadopago-...
               </div>
             </div>
 
@@ -6136,7 +6217,7 @@ export default function App() {
         href="https://wa.me/5562996346075"
         target="_blank"
         rel="noopener noreferrer"
-        title="Falar com o Suporte Carona Cash"
+        title="Falar com o Suporte Carona"
         className="fixed bottom-6 right-6 z-50 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full p-4 shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all duration-300 group border-2 border-emerald-400 font-bold"
         id="global-whatsapp-support-btn"
       >
