@@ -390,64 +390,64 @@ export default function App() {
     const cityLower = (cityName || '').toLowerCase();
     if (cityLower.includes('itaberai') || cityLower.includes('itaberaí') || cityLower.includes('goiânia') || cityLower.includes('goiania') || cityLower.includes('goiás') || cityLower.includes('go')) {
       return [
-        { nome: 'Goiânia Shopping - Setor Bueno, Goiânia', coords: { lat: -16.7093, lng: -49.2778 }, distance: 5.5 },
-        { nome: 'Flamboyant Shopping - Jardim Goiás, Goiânia', coords: { lat: -16.7097, lng: -49.2312 }, distance: 7.2 },
-        { nome: 'Parque Vaca Brava - Setor Bueno, Goiânia', coords: { lat: -16.7077, lng: -49.2764 }, distance: 5.3 },
-        { nome: 'Praça Cívica - Centro, Goiânia', coords: { lat: -16.6791, lng: -49.2562 }, distance: 1.2 },
-        { nome: 'Aeroporto Internacional Santa Genoveva - Goiânia', coords: { lat: -16.6329, lng: -49.2223 }, distance: 12.5 },
-        { nome: 'Terminal Rodoviário de Goiânia - Centro', coords: { lat: -16.6612, lng: -49.2642 }, distance: 2.1 },
-        { nome: 'Parque Flamboyant - Jardim Goiás, Goiânia', coords: { lat: -16.7115, lng: -49.2384 }, distance: 7.5 },
-        { nome: 'Bosque dos Buritis - Setor Oeste, Goiânia', coords: { lat: -16.6806, lng: -49.2625 }, distance: 1.8 },
-        { nome: 'Passeio das Águas Shopping - Goiânia', coords: { lat: -16.6212, lng: -49.2690 }, distance: 9.8 },
-        { nome: 'Praça Universitária - Setor Universitário, Goiânia', coords: { lat: -16.6775, lng: -49.2435 }, distance: 3.4 },
-        { nome: 'Santa Casa de Misericórdia - Goiânia', coords: { lat: -16.6872, lng: -49.2356 }, distance: 4.1 },
-        { nome: 'Goiânia Arena - Setor de Recreação', coords: { lat: -16.6955, lng: -49.2285 }, distance: 8.0 },
-        { nome: 'Parque Areião - Setor Pedro Ludovico, Goiânia', coords: { lat: -16.7160, lng: -49.2600 }, distance: 6.2 },
-        { nome: 'Supermercado Bretas - Setor Sol Nascente, Goiânia', coords: { lat: -16.6910, lng: -49.2890 }, distance: 7.0 },
-        { nome: 'UNIP Campus Goiânia - BR-153', coords: { lat: -16.7210, lng: -49.2490 }, distance: 8.3 },
-        { nome: 'Praça Senador Silva Canedo - Centro, Itaberaí', coords: { lat: -16.0232, lng: -49.8080 }, distance: 2.1 },
-        { nome: 'Lago Municipal de Itaberaí - Parque', coords: { lat: -16.0315, lng: -49.8142 }, distance: 3.5 },
-        { nome: 'Parque Ecológico de Itaberaí - Natureza', coords: { lat: -16.0150, lng: -49.8010 }, distance: 4.8 },
-        { nome: 'Terminal Rodoviário de Itaberaí', coords: { lat: -16.0270, lng: -49.8095 }, distance: 1.5 },
-        { nome: 'Hospital Municipal de Itaberaí', coords: { lat: -16.0298, lng: -49.8115 }, distance: 1.9 },
-        { nome: 'Prefeitura Municipal de Itaberaí', coords: { lat: -16.0225, lng: -49.8075 }, distance: 2.3 },
-        { nome: 'Supermercado Bretas - Avenida Goiás', coords: { lat: -16.0245, lng: -49.8085 }, distance: 2.0 },
-        { nome: 'Igreja Matriz de Itaberaí', coords: { lat: -16.0218, lng: -49.8068 }, distance: 2.5 },
-        { nome: 'Universidade Estadual de Goiás (UEG)', coords: { lat: -16.0380, lng: -49.8220 }, distance: 4.2 },
-        { nome: 'Ginásio de Esportes de Itaberaí', coords: { lat: -16.0330, lng: -49.8160 }, distance: 3.8 },
-        { nome: 'Posto Shell - Avenida Goiás', coords: { lat: -16.0255, lng: -49.8090 }, distance: 1.8 },
-        { nome: 'Banco do Brasil - Centro Itaberaí', coords: { lat: -16.0238, lng: -49.8081 }, distance: 2.2 },
-        { nome: 'Drogaria Globo - Centro Itaberaí', coords: { lat: -16.0240, lng: -49.8083 }, distance: 2.1 },
-        { nome: 'Feira Coberta de Itaberaí', coords: { lat: -16.0285, lng: -49.8105 }, distance: 1.6 }
+        { nome: 'Goiânia Shopping - Setor Bueno, Goiânia', coords: { lat: -16.7093, lng: -49.2778 }, distance: 7.2 },
+        { nome: 'Flamboyant Shopping - Jardim Goiás, Goiânia', coords: { lat: -16.7097, lng: -49.2312 }, distance: 9.5 },
+        { nome: 'Parque Vaca Brava - Setor Bueno, Goiânia', coords: { lat: -16.7077, lng: -49.2764 }, distance: 6.8 },
+        { nome: 'Praça Cívica - Centro, Goiânia', coords: { lat: -16.6791, lng: -49.2562 }, distance: 1.6 },
+        { nome: 'Aeroporto Internacional Santa Genoveva - Goiânia', coords: { lat: -16.6329, lng: -49.2223 }, distance: 16.2 },
+        { nome: 'Terminal Rodoviário de Goiânia - Centro', coords: { lat: -16.6612, lng: -49.2642 }, distance: 2.8 },
+        { nome: 'Parque Flamboyant - Jardim Goiás, Goiânia', coords: { lat: -16.7115, lng: -49.2384 }, distance: 9.8 },
+        { nome: 'Bosque dos Buritis - Setor Oeste, Goiânia', coords: { lat: -16.6806, lng: -49.2625 }, distance: 2.3 },
+        { nome: 'Passeio das Águas Shopping - Goiânia', coords: { lat: -16.6212, lng: -49.2690 }, distance: 12.8 },
+        { nome: 'Praça Universitária - Setor Universitário, Goiânia', coords: { lat: -16.6775, lng: -49.2435 }, distance: 4.5 },
+        { nome: 'Santa Casa de Misericórdia - Goiânia', coords: { lat: -16.6872, lng: -49.2356 }, distance: 5.4 },
+        { nome: 'Goiânia Arena - Setor de Recreação', coords: { lat: -16.6955, lng: -49.2285 }, distance: 10.5 },
+        { nome: 'Parque Areião - Setor Pedro Ludovico, Goiânia', coords: { lat: -16.7160, lng: -49.2600 }, distance: 8.1 },
+        { nome: 'Supermercado Bretas - Setor Sol Nascente, Goiânia', coords: { lat: -16.6910, lng: -49.2890 }, distance: 9.2 },
+        { nome: 'UNIP Campus Goiânia - BR-153', coords: { lat: -16.7210, lng: -49.2490 }, distance: 10.8 },
+        { nome: 'Praça Senador Silva Canedo - Centro, Itaberaí', coords: { lat: -16.0232, lng: -49.8080 }, distance: 2.8 },
+        { nome: 'Lago Municipal de Itaberaí - Parque', coords: { lat: -16.0315, lng: -49.8142 }, distance: 4.6 },
+        { nome: 'Parque Ecológico de Itaberaí - Natureza', coords: { lat: -16.0150, lng: -49.8010 }, distance: 6.3 },
+        { nome: 'Terminal Rodoviário de Itaberaí', coords: { lat: -16.0270, lng: -49.8095 }, distance: 1.9 },
+        { nome: 'Hospital Municipal de Itaberaí', coords: { lat: -16.0298, lng: -49.8115 }, distance: 2.5 },
+        { nome: 'Prefeitura Municipal de Itaberaí', coords: { lat: -16.0225, lng: -49.8075 }, distance: 3.0 },
+        { nome: 'Supermercado Bretas - Avenida Goiás', coords: { lat: -16.0245, lng: -49.8085 }, distance: 2.6 },
+        { nome: 'Igreja Matriz de Itaberaí', coords: { lat: -16.0218, lng: -49.8068 }, distance: 3.2 },
+        { nome: 'Universidade Estadual de Goiás (UEG)', coords: { lat: -16.0380, lng: -49.8220 }, distance: 5.5 },
+        { nome: 'Ginásio de Esportes de Itaberaí', coords: { lat: -16.0330, lng: -49.8160 }, distance: 5.0 },
+        { nome: 'Posto Shell - Avenida Goiás', coords: { lat: -16.0255, lng: -49.8090 }, distance: 2.4 },
+        { nome: 'Banco do Brasil - Centro Itaberaí', coords: { lat: -16.0238, lng: -49.8081 }, distance: 2.9 },
+        { nome: 'Drogaria Globo - Centro Itaberaí', coords: { lat: -16.0240, lng: -49.8083 }, distance: 2.7 },
+        { nome: 'Feira Coberta de Itaberaí', coords: { lat: -16.0285, lng: -49.8105 }, distance: 2.1 }
       ];
     } else if (cityLower.includes('rio de janeiro') || cityLower.includes('rj')) {
       return [
-        { nome: 'Copacabana - Posto 4', coords: { lat: -22.9698, lng: -43.1855 }, distance: 6.2 },
-        { nome: 'Pão de Açúcar - Urca', coords: { lat: -22.9492, lng: -43.1546 }, distance: 8.5 },
-        { nome: 'Cristo Redentor - Corcovado', coords: { lat: -22.9519, lng: -43.2105 }, distance: 12.0 },
-        { nome: 'Aeroporto Santos Dumont - Centro', coords: { lat: -22.9103, lng: -43.1629 }, distance: 4.5 },
+        { nome: 'Copacabana - Posto 4', coords: { lat: -22.9698, lng: -43.1855 }, distance: 8.1 },
+        { nome: 'Pão de Açúcar - Urca', coords: { lat: -22.9492, lng: -43.1546 }, distance: 11.2 },
+        { nome: 'Cristo Redentor - Corcovado', coords: { lat: -22.9519, lng: -43.2105 }, distance: 16.5 },
+        { nome: 'Aeroporto Santos Dumont - Centro', coords: { lat: -22.9103, lng: -43.1629 }, distance: 5.9 },
       ];
     } else if (cityLower.includes('campinas')) {
       return [
-        { nome: 'Parque Portugal (Taquaral)', coords: { lat: -22.8752, lng: -47.0421 }, distance: 5.1 },
-        { nome: 'Cambuí - Shopping', coords: { lat: -22.8953, lng: -47.0512 }, distance: 3.2 },
-        { nome: 'Aeroporto de Viracopos', coords: { lat: -23.0074, lng: -47.1345 }, distance: 15.6 },
-        { nome: 'Barão Geraldo - UNICAMP', coords: { lat: -22.8173, lng: -47.0697 }, distance: 10.4 },
+        { nome: 'Parque Portugal (Taquaral)', coords: { lat: -22.8752, lng: -47.0421 }, distance: 6.8 },
+        { nome: 'Cambuí - Shopping', coords: { lat: -22.8953, lng: -47.0512 }, distance: 4.2 },
+        { nome: 'Aeroporto de Viracopos', coords: { lat: -23.0074, lng: -47.1345 }, distance: 20.8 },
+        { nome: 'Barão Geraldo - UNICAMP', coords: { lat: -22.8173, lng: -47.0697 }, distance: 13.9 },
       ];
     } else if (cityLower.includes('belo horizonte') || cityLower.includes('bh')) {
       return [
-        { nome: 'Lagoa da Pampulha - Igreja', coords: { lat: -19.8519, lng: -43.9792 }, distance: 9.8 },
-        { nome: 'Praça da Liberdade - Savassi', coords: { lat: -19.9324, lng: -43.9378 }, distance: 3.0 },
-        { nome: 'Mercado Central - Centro', coords: { lat: -19.9231, lng: -43.9439 }, distance: 1.8 },
-        { nome: 'Estádio Mineirão', coords: { lat: -19.8659, lng: -43.9711 }, distance: 8.2 },
+        { nome: 'Lagoa da Pampulha - Igreja', coords: { lat: -19.8519, lng: -43.9792 }, distance: 12.8 },
+        { nome: 'Praça da Liberdade - Savassi', coords: { lat: -19.9324, lng: -43.9378 }, distance: 4.0 },
+        { nome: 'Mercado Central - Centro', coords: { lat: -19.9231, lng: -43.9439 }, distance: 2.4 },
+        { nome: 'Estádio Mineirão', coords: { lat: -19.8659, lng: -43.9711 }, distance: 10.9 },
       ];
     } else {
       // Default / São Paulo
       return [
-        { nome: 'Av. Brigadeiro Faria Lima, 2232 - Itaim Bibi', coords: { lat: -23.5824, lng: -46.6868 }, distance: 5.8 },
-        { nome: 'Rua Augusta, 450 - Consolação', coords: { lat: -23.5505, lng: -46.6579 }, distance: 1.8 },
-        { nome: 'Parque Ibirapuera - Moema', coords: { lat: -23.5874, lng: -46.6576 }, distance: 4.1 },
-        { nome: 'Aeroporto de Congonhas - Vila Congonhas', coords: { lat: -23.6273, lng: -46.6565 }, distance: 8.5 },
+        { nome: 'Av. Brigadeiro Faria Lima, 2232 - Itaim Bibi', coords: { lat: -23.5824, lng: -46.6868 }, distance: 7.8 },
+        { nome: 'Rua Augusta, 450 - Consolação', coords: { lat: -23.5505, lng: -46.6579 }, distance: 2.4 },
+        { nome: 'Parque Ibirapuera - Moema', coords: { lat: -23.5874, lng: -46.6576 }, distance: 5.5 },
+        { nome: 'Aeroporto de Congonhas - Vila Congonhas', coords: { lat: -23.6273, lng: -46.6565 }, distance: 11.2 },
       ];
     }
   };
@@ -563,7 +563,7 @@ export default function App() {
     }, 5000);
   };
 
-  // --- Accurate GPS Coordinates Distance calculator (Haversine Formula) ---
+  // --- Accurate GPS Coordinates Distance calculator (Haversine Formula with Google Maps Circuity Adjuster) ---
   const getCoordinatesDistanceKm = (co1: { lat: number; lng: number }, co2: { lat: number; lng: number }) => {
     const R = 6371; // Earth's radius in km
     const dLat = (co2.lat - co1.lat) * Math.PI / 180;
@@ -573,7 +573,11 @@ export default function App() {
       Math.cos(co1.lat * Math.PI / 180) * Math.cos(co2.lat * Math.PI / 180) * 
       Math.sin(dLng / 2) * Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+    const straightLineDist = R * c;
+    
+    // Multiplied by a standard Brazilian urban routing circuity factor (1.30)
+    // to match real street networks, detours, and routes displayed on Google Maps.
+    return straightLineDist * 1.30;
   };
 
   const getCityCenterCoords = (cityName: string) => {
