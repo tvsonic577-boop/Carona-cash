@@ -11,6 +11,7 @@ interface SimulatedMapProps {
   onSimulationUpdate?: (currentCoords: { lat: number; lng: number }) => void;
   onArrivedAtOrigin?: () => void;
   onArrivedAtDestination?: () => void;
+  onMapClick?: (coords: { lat: number; lng: number }) => void;
 }
 
 // Fixed dimensions for canvas
@@ -27,9 +28,15 @@ export default function SimulatedMap({
   onSimulationUpdate,
   onArrivedAtOrigin,
   onArrivedAtDestination,
+  onMapClick,
 }: SimulatedMapProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  
+  const onMapClickRef = useRef(onMapClick);
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  }, [onMapClick]);
   
   // Dynamic Environment Check with safe type assertion for Vite's compiler
   const apiKey = (((import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY as string) || '').trim();
@@ -100,6 +107,53 @@ export default function SimulatedMap({
     const y = MAP_HEIGHT - ((lat - minLat) / (maxLat - minLat)) * MAP_HEIGHT; // invert y
 
     return { x, y };
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || isGoogleMapsActive) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Standard bounding box limits
+    let minLat = -23.60;
+    let maxLat = -23.50;
+    let minLng = -46.70;
+    let maxLng = -46.60;
+
+    if (origemCoords && destinoCoords) {
+      const allCoords = [origemCoords, destinoCoords];
+      const lats = allCoords.map(c => c.lat);
+      const lngs = allCoords.map(c => c.lng);
+
+      const maxL = Math.max(...lats);
+      const minL = Math.min(...lats);
+      const maxG = Math.max(...lngs);
+      const minG = Math.min(...lngs);
+
+      if (minL < -24 || maxL > -23 || minG < -47 || maxG > -46) {
+        const latSpan = Math.abs(maxL - minL) || 0.05;
+        const lngSpan = Math.abs(maxG - minG) || 0.05;
+
+        minLat = minL - latSpan * 0.2;
+        maxLat = maxL + latSpan * 0.2;
+        minLng = minG - lngSpan * 0.2;
+        maxLng = maxG + lngSpan * 0.2;
+      }
+    } else {
+      // Fallback default is Itaberaí bounds!
+      minLat = -16.035;
+      maxLat = -16.015;
+      minLng = -49.820;
+      maxLng = -49.800;
+    }
+
+    const clickedLng = minLng + (x / rect.width) * (maxLng - minLng);
+    const clickedLat = minLat + ((rect.height - y) / rect.height) * (maxLat - minLat);
+
+    if (onMapClickRef.current) {
+      onMapClickRef.current({ lat: clickedLat, lng: clickedLng });
+    }
   };
 
   // Preset location points on the simulated canvas map (mock roads)
@@ -184,7 +238,7 @@ export default function SimulatedMap({
       if (!g) return;
 
       // Center of the map defaults to origin location
-      const defaultCenter = origemCoords || { lat: -23.55, lng: -46.63 };
+      const defaultCenter = origemCoords || { lat: -16.0270, lng: -49.8095 };
 
       const mapOptions = {
         zoom: 14,
@@ -199,6 +253,13 @@ export default function SimulatedMap({
 
       const map = new g.maps.Map(mapContainerRef.current, mapOptions);
       mapInstanceRef.current = map;
+
+      map.addListener('click', (mapsMouseEvent: any) => {
+        const clickedLatLng = mapsMouseEvent.latLng;
+        if (clickedLatLng && onMapClickRef.current) {
+          onMapClickRef.current({ lat: clickedLatLng.lat(), lng: clickedLatLng.lng() });
+        }
+      });
 
       // Directions elements initialization
       directionsServiceRef.current = new g.maps.DirectionsService();
@@ -655,8 +716,10 @@ export default function SimulatedMap({
               ref={canvasRef}
               width={MAP_WIDTH}
               height={MAP_HEIGHT}
-              className="max-w-full block h-[400px] object-cover shadow-inner"
+              className="max-w-full block h-[400px] object-cover shadow-inner cursor-pointer"
+              onClick={handleCanvasClick}
               id="simulation-canvas"
+              title="Clique para realocar sua origem de partida"
             />
 
             {googleAuthFailed && (

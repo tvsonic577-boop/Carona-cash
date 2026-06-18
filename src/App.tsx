@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Car,
   UserCheck,
@@ -312,7 +312,7 @@ export default function App() {
   }, [accountPasswords]);
 
   // --- Client Portal Variables ---
-  const [clientOrigin, setClientOrigin] = useState<string>('Avenida Paulista, 1000 - Bela Vista');
+  const [clientOrigin, setClientOrigin] = useState<string>('');
   const [clientCustomCoords, setClientCustomCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState<boolean>(false);
 
@@ -320,7 +320,7 @@ export default function App() {
     const cli = clientes.find(c => c.id === activeClienteId);
     if (cli) {
       if (!clientCustomCoords) {
-        setClientOrigin(cli.endereco || 'Centro');
+        setClientOrigin(cli.endereco || '');
       }
       setSelectedDestinationIndex(-1);
     }
@@ -383,6 +383,16 @@ export default function App() {
         { nome: 'Lago Municipal de Itaberaí - Parque', coords: { lat: -16.0315, lng: -49.8142 }, distance: 3.5 },
         { nome: 'Parque Ecológico de Itaberaí - Natureza', coords: { lat: -16.0150, lng: -49.8010 }, distance: 4.8 },
         { nome: 'Terminal Rodoviário de Itaberaí', coords: { lat: -16.0270, lng: -49.8095 }, distance: 1.5 },
+        { nome: 'Hospital Municipal de Itaberaí', coords: { lat: -16.0298, lng: -49.8115 }, distance: 1.9 },
+        { nome: 'Prefeitura Municipal de Itaberaí', coords: { lat: -16.0225, lng: -49.8075 }, distance: 2.3 },
+        { nome: 'Supermercado Bretas - Avenida Goiás', coords: { lat: -16.0245, lng: -49.8085 }, distance: 2.0 },
+        { nome: 'Igreja Matriz de Itaberaí', coords: { lat: -16.0218, lng: -49.8068 }, distance: 2.5 },
+        { nome: 'Universidade Estadual de Goiás (UEG)', coords: { lat: -16.0380, lng: -49.8220 }, distance: 4.2 },
+        { nome: 'Ginásio de Esportes de Itaberaí', coords: { lat: -16.0330, lng: -49.8160 }, distance: 3.8 },
+        { nome: 'Posto Shell - Avenida Goiás', coords: { lat: -16.0255, lng: -49.8090 }, distance: 1.8 },
+        { nome: 'Banco do Brasil - Centro Itaberaí', coords: { lat: -16.0238, lng: -49.8081 }, distance: 2.2 },
+        { nome: 'Drogaria Globo - Centro Itaberaí', coords: { lat: -16.0240, lng: -49.8083 }, distance: 2.1 },
+        { nome: 'Feira Coberta de Itaberaí', coords: { lat: -16.0285, lng: -49.8105 }, distance: 1.6 }
       ];
     } else if (cityLower.includes('rio de janeiro') || cityLower.includes('rj')) {
       return [
@@ -417,8 +427,19 @@ export default function App() {
   };
 
   const clientObjForDest = clientes.find(c => c.id === activeClienteId);
-  const currentPassengerCity = clientObjForDest ? clientObjForDest.cidade : 'São Paulo';
+  const currentPassengerCity = clientObjForDest ? clientObjForDest.cidade : 'Itaberaí';
   const popularDestinations = getPopularDestinationsForCity(currentPassengerCity);
+
+  const filteredDestinations = useMemo(() => {
+    if (!clientDestination || clientDestination.trim() === '') {
+      return popularDestinations;
+    }
+    const query = clientDestination.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return popularDestinations.filter(dest => {
+      const normalizedNome = dest.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return normalizedNome.includes(query);
+    });
+  }, [popularDestinations, clientDestination]);
 
   // --- Form Registration Variables ---
   const [registrationMode, setRegistrationMode] = useState<'NONE' | 'CLIENTE' | 'MOTORISTA'>('NONE');
@@ -539,8 +560,10 @@ export default function App() {
       return { lat: -22.9056, lng: -47.0608 };
     } else if (currentCityLower.includes('belo') || currentCityLower.includes('bh')) {
       return { lat: -19.9167, lng: -43.9345 };
+    } else if (currentCityLower.includes('são paulo') || currentCityLower.includes('sao paulo') || currentCityLower.includes('sp')) {
+      return { lat: -23.5615, lng: -46.6562 };
     }
-    return { lat: -23.5615, lng: -46.6562 };
+    return { lat: -16.0270, lng: -49.8095 }; // Default fallback is Itaberaí, Goias
   };
 
   const triggerGeolocation = () => {
@@ -553,25 +576,17 @@ export default function App() {
       (position) => {
         const { latitude, longitude } = position.coords;
         setClientCustomCoords({ lat: latitude, lng: longitude });
-        setClientOrigin("Sua Localização Atual");
+        setClientOrigin(""); // Deixa em branco conforme pedido para focar no placeholder "Seu Local"
         setLocationLoading(false);
-        addNotification("Sua localização GPS atual foi detectada com sucesso e cadastrada no mapa!", "success");
-        
-        // Reverse Geocoding via Google Maps Geocoder if loaded, for human readable address
-        const g = (window as any).google;
-        if (g && g.maps && g.maps.Geocoder) {
-          const geocoder = new g.maps.Geocoder();
-          geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results: any, status: any) => {
-            if (status === 'OK' && results[0]) {
-              setClientOrigin(results[0].formatted_address);
-            }
-          });
-        }
+        addNotification("Coordenadas de GPS atualizadas com sucesso! Ponto de partida definido como Seu Local.", "success");
       },
       (error) => {
         console.error("Erro ao obter geolocalização:", error);
         setLocationLoading(false);
-        addNotification("Não foi possível acessar seu GPS. Conceda permissões de localização nas configurações do seu navegador para apontar onde você está.", "info");
+        // Fallback confiável para Itaberaí, Goiás
+        setClientCustomCoords({ lat: -16.0270, lng: -49.8095 });
+        setClientOrigin("");
+        addNotification("Por favor, ative a permissão do GPS do celular ou clique no mapa para posicionar sua partida em Itaberaí (Goiás).", "info");
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -645,7 +660,7 @@ export default function App() {
       clienteId: activeClienteId,
       clienteNome: users.find(u => u.id === cli.userId)?.nome || 'Cliente Anônimo',
       clienteTelefone: users.find(u => u.id === cli.userId)?.telefone || '(11) 99999-0000',
-      origem: clientOrigin,
+      origem: clientOrigin.trim() === '' ? 'Seu Local' : clientOrigin,
       destino: dest.nome,
       origemCoords: computedOriginCoords,
       destinoCoords: dest.coords,
@@ -2119,7 +2134,7 @@ export default function App() {
                     type="text"
                     value={newClientData.endereco}
                     onChange={e => setNewClientData({...newClientData, endereco: e.target.value})}
-                    placeholder="Avenida Paulista, 1000 - Bela Vista"
+                    placeholder="Ex: Avenida Goiás, 200 - Centro"
                     className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                   />
                 </div>
@@ -2720,10 +2735,13 @@ export default function App() {
 
               {/* Ride Request Box */}
               <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative">
-                <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <MapPin className="text-emerald-700" size={18} />
-                  Solicitar Corrida Carona
-                </h3>
+                <div className="mb-6 text-center border-b border-gray-150 pb-4">
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center justify-center gap-1.5 text-emerald-800">
+                    <MapPin className="text-emerald-700 shrink-0" size={20} />
+                    Para onde vamos?
+                  </h2>
+                  <p className="text-[10px] text-slate-500 mt-1">Clique no mapa para mudar seu ponto de partida ou busque abaixo</p>
+                </div>
 
                 <div className="space-y-4">
                   {/* Origin */}
@@ -2735,9 +2753,27 @@ export default function App() {
                           type="text"
                           value={clientOrigin}
                           onChange={(e) => setClientOrigin(e.target.value)}
-                          placeholder="Origem"
-                          className="w-full text-xs pl-3 pr-10 py-2 border rounded-lg bg-gray-50 text-slate-600 focus:outline-none"
+                          placeholder="Seu Local"
+                          className="w-full text-xs pl-3 pr-28 py-2.5 border rounded-lg bg-stone-50 text-slate-800 placeholder-slate-400 font-medium focus:outline-none focus:ring-1 focus:ring-emerald-600"
                         />
+                        {clientOrigin === '' ? (
+                          <div className="absolute right-10 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded pointer-events-none">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span>Seu Local</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setClientOrigin('');
+                              addNotification("Origem restaurada para Seu Local (GPS)!", "info");
+                            }}
+                            className="absolute right-10 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 hover:text-red-600 font-bold px-1 py-0.5 bg-gray-100 rounded cursor-pointer transition hover:scale-105"
+                            title="Limpar e usar seu local GPS atual"
+                          >
+                            Limpar
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={triggerGeolocation}
@@ -2754,24 +2790,70 @@ export default function App() {
                   {/* Destination list selector */}
                   <div>
                     <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Para onde vamos? (Destino)</label>
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                      {popularDestinations.map((dest, idx) => (
+                    
+                    {/* Destination Search/Type Box */}
+                    <div className="relative mb-3">
+                      <input
+                        type="text"
+                        value={clientDestination}
+                        onChange={(e) => {
+                          const query = e.target.value;
+                          setClientDestination(query);
+                          // Reset selection index to search mode
+                          setSelectedDestinationIndex(-1);
+                        }}
+                        placeholder="Digite o local ou endereço de chegada..."
+                        className="w-full text-xs pl-3 pr-20 py-2.5 border border-zinc-200 rounded-lg bg-stone-50 text-slate-800 placeholder-slate-400 font-medium focus:outline-none focus:ring-1 focus:ring-emerald-600 transition"
+                      />
+                      {clientDestination && (
                         <button
-                          key={idx}
-                          onClick={() => setSelectedDestinationIndex(idx)}
-                          className={`w-full text-left p-2.5 rounded-lg border text-xs transition-all duration-150 flex items-start gap-2 hover:cursor-pointer ${
-                            selectedDestinationIndex === idx
-                              ? 'border-emerald-600 bg-emerald-50/50 text-emerald-950 font-medium'
-                              : 'border-gray-200 hover:bg-gray-50'
-                          }`}
+                          type="button"
+                          onClick={() => {
+                            setClientDestination('');
+                            setSelectedDestinationIndex(-1);
+                            addNotification("Pesquisa limpa!", "info");
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-400 hover:text-red-500 bg-zinc-100 hover:bg-zinc-200/60 px-2 py-1 rounded cursor-pointer transition"
                         >
-                          <MapPin size={14} className="mt-0.5 text-zinc-400 shrink-0" />
-                          <div>
-                            <div className="font-bold">{dest.nome.split('-')[0]}</div>
-                            <span className="text-[10px] text-zinc-500">{dest.distance} Km (Est: {Math.round(dest.distance * 2.8)} min)</span>
-                          </div>
+                          Limpar
                         </button>
-                      ))}
+                      )}
+                    </div>
+
+                    {/* Suggestions list of destinations */}
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {filteredDestinations.length === 0 ? (
+                        <div className="text-center py-4 text-xs text-zinc-400 bg-zinc-50 rounded-lg border border-dashed border-zinc-200">
+                          Nenhum local encontrado para "{clientDestination}"
+                        </div>
+                      ) : (
+                        filteredDestinations.map((dest) => {
+                          const idx = popularDestinations.findIndex(p => p.nome === dest.nome);
+                          return (
+                            <button
+                              key={dest.nome}
+                              onClick={() => {
+                                setClientDestination(dest.nome);
+                                setSelectedDestinationIndex(idx);
+                                addNotification(`Destino selecionado: ${dest.nome.split('-')[0]}`, "success");
+                              }}
+                              className={`w-full text-left p-2.5 rounded-lg border text-xs transition-all duration-150 flex items-start gap-2 hover:cursor-pointer ${
+                                selectedDestinationIndex === idx
+                                  ? 'border-emerald-600 bg-emerald-50/50 text-emerald-950 font-semibold shadow-sm'
+                                  : 'border-zinc-200 hover:bg-zinc-50'
+                              }`}
+                            >
+                              <MapPin size={14} className={`mt-0.5 shrink-0 ${selectedDestinationIndex === idx ? 'text-emerald-600' : 'text-zinc-400'}`} />
+                              <div>
+                                <div className="font-bold">{dest.nome.split('-')[0]}</div>
+                                <span className="text-[10px] text-zinc-500">
+                                  {dest.distance} Km (Est: {Math.round(dest.distance * 2.8)} min)
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
 
@@ -2946,6 +3028,21 @@ export default function App() {
                     // Auto complete
                     handleFinishTrip(currentActiveCorrida.id);
                   }
+                }}
+                onMapClick={(coords) => {
+                  setClientCustomCoords(coords);
+                  setClientOrigin("Local selecionado via Mapa");
+                  // Reverse geocode if Google Maps is active and present to fill human-readable address
+                  const g = (window as any).google;
+                  if (g && g.maps && g.maps.Geocoder) {
+                    const geocoder = new g.maps.Geocoder();
+                    geocoder.geocode({ location: coords }, (results: any, status: any) => {
+                      if (status === 'OK' && results[0]) {
+                        setClientOrigin(results[0].formatted_address);
+                      }
+                    });
+                  }
+                  addNotification("Local de partida atualizado clicando no mapa!", "success");
                 }}
               />
 

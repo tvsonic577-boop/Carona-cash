@@ -122,21 +122,21 @@ export const INITIAL_CLIENTES: Cliente[] = [
     id: 'c-1',
     userId: 'u-cli-1',
     cpf: '123.456.789-01',
-    endereco: 'Av. Paulista, 1000 - Bela Vista',
-    cidade: 'São Paulo',
+    endereco: '',
+    cidade: 'Itaberaí',
   },
   {
     id: 'c-2',
     userId: 'u-cli-2',
     cpf: '987.654.321-02',
-    endereco: 'Rua Augusta, 450 - Consolação',
-    cidade: 'São Paulo',
+    endereco: '',
+    cidade: 'Itaberaí',
   },
   {
     id: 'c-go',
     userId: 'u-cli-go',
     cpf: '456.789.012-34',
-    endereco: 'Avenida Goiás, 200 - Centro',
+    endereco: '',
     cidade: 'Itaberaí',
   }
 ];
