@@ -206,7 +206,7 @@ export default function SimulatedMap({
 
     const script = document.createElement('script');
     script.id = scriptId;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker&v=weekly`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&v=weekly`;
     script.async = true;
     script.defer = true;
     script.onload = () => {
@@ -342,8 +342,9 @@ export default function SimulatedMap({
           const pinContainer = document.createElement('div');
           pinContainer.className = 'relative flex flex-col items-center select-none animate-fade-in';
           pinContainer.innerHTML = `
-            <div class="bg-rose-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-md mb-1 whitespace-nowrap border border-rose-500">
-              🎯 ${destinoNome}
+            <div class="bg-rose-700 text-white text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg shadow-lg mb-1 whitespace-nowrap border border-rose-500 text-center flex flex-col items-center">
+              <span class="text-[8px] bg-white text-rose-700 px-1 py-0.2 rounded-sm font-black mb-0.5 uppercase tracking-wider">Chegada</span>
+              <span class="font-bold">🏁 ${destinoNome.split(',')[0]}</span>
             </div>
             <div class="w-3.5 h-3.5 bg-rose-600 border border-white rounded-full shadow-lg"></div>
           `;
@@ -357,7 +358,7 @@ export default function SimulatedMap({
           destinationMarkerRef.current = new g.maps.Marker({
             map,
             position: destinoCoords,
-            title: destinoNome,
+            title: `Chegada: ${destinoNome}`,
           });
         }
       } catch (err) {
@@ -366,7 +367,7 @@ export default function SimulatedMap({
           destinationMarkerRef.current = new g.maps.Marker({
             map,
             position: destinoCoords,
-            title: destinoNome,
+            title: `Chegada: ${destinoNome}`,
           });
         } catch (innerErr) {
           console.error("Failed creating destination marker:", innerErr);
@@ -617,25 +618,33 @@ export default function SimulatedMap({
       const orig = mapCoordsToCanvas(origemCoords.lat, origemCoords.lng);
       const dest = mapCoordsToCanvas(destinoCoords.lat, destinoCoords.lng);
 
-      ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)';
+      let startPoint = orig;
+      let endPoint = dest;
+
+      if (status === 'MOTORISTA_A_CAMINHO') {
+        startPoint = { x: 250, y: 350 };
+        endPoint = orig;
+      }
+
+      ctx.strokeStyle = status === 'MOTORISTA_A_CAMINHO' ? 'rgba(245, 158, 11, 0.35)' : 'rgba(74, 222, 128, 0.35)';
       ctx.lineWidth = 8;
       ctx.beginPath();
-      ctx.moveTo(orig.x, orig.y);
-      ctx.lineTo(orig.x, dest.y);
-      ctx.lineTo(dest.x, dest.y);
+      ctx.moveTo(startPoint.x, startPoint.y);
+      ctx.lineTo(startPoint.x, endPoint.y);
+      ctx.lineTo(endPoint.x, endPoint.y);
       ctx.stroke();
 
-      ctx.strokeStyle = '#15803d';
+      ctx.strokeStyle = status === 'MOTORISTA_A_CAMINHO' ? '#d97706' : '#15803d';
       ctx.lineWidth = 4;
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
-      ctx.moveTo(orig.x, orig.y);
-      ctx.lineTo(orig.x, dest.y);
-      ctx.lineTo(dest.x, dest.y);
+      ctx.moveTo(startPoint.x, startPoint.y);
+      ctx.lineTo(startPoint.x, endPoint.y);
+      ctx.lineTo(endPoint.x, endPoint.y);
       ctx.stroke();
       ctx.setLineDash([]);
     }
-  }, [origemCoords, destinoCoords, isGoogleMapsActive, googleMapsLoaded, googleLoadError]);
+  }, [origemCoords, destinoCoords, status, isGoogleMapsActive, googleMapsLoaded, googleLoadError]);
 
   return (
     <div className="relative w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-100" id="carona-map-wrapper">
@@ -782,10 +791,11 @@ export default function SimulatedMap({
                   top: `${(mapCoordsToCanvas(destinoCoords.lat, destinoCoords.lng).y / MAP_HEIGHT) * 100}%`,
                 }}
               >
-                <div className="bg-rose-950 text-white text-[9px] px-1.5 py-0.5 rounded shadow-lg font-bold border border-rose-500 mb-0.5 max-w-[124px] truncate leading-tight">
-                  {destinoNome}
+                <div className="bg-rose-950 text-white text-[9px] px-2 py-1 rounded shadow-lg font-bold border border-rose-500 mb-0.5 max-w-[130px] text-center leading-tight">
+                  <span className="block text-[7px] text-rose-300 uppercase tracking-widest font-black">Chegada</span>
+                  <span className="truncate block font-semibold">🏁 {destinoNome.split(',')[0]}</span>
                 </div>
-                <MapPin className="text-rose-600 drop-shadow fill-white" size={24} />
+                <MapPin className="text-rose-600 drop-shadow fill-white animate-bounce" size={24} />
               </div>
             )}
 

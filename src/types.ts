@@ -80,6 +80,9 @@ export interface Corrida {
   valor: number; // em R$ (minimo R$ 7,00)
   status: CorridaStatus;
   currentDriverCoords?: { lat: number; lng: number };
+  isTaximetroRide?: boolean;
+  taximetroActive?: boolean;
+  distanciaPercorrida?: number;
   createdAt: string;
 }
 

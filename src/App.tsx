@@ -160,12 +160,14 @@ export default function App() {
     const saved = localStorage.getItem('cc_corridas');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as Corrida[];
+        // Filter out static mock run IDs ('cr-1', 'cr-2') so we only have real user-triggered runs
+        return parsed.filter(c => !c.id.startsWith('cr-') || c.id.includes('cr-quick-') || c.id.length > 8);
       } catch (e) {
-        return INITIAL_CORRIDAS;
+        return [];
       }
     }
-    return INITIAL_CORRIDAS;
+    return [];
   });
 
   const [cidades, setCidades] = useState<CidadeAtendida[]>(() => {
@@ -319,9 +321,7 @@ export default function App() {
   useEffect(() => {
     const cli = clientes.find(c => c.id === activeClienteId);
     if (cli) {
-      if (!clientCustomCoords) {
-        setClientOrigin(cli.endereco || '');
-      }
+      setClientOrigin('');
       setSelectedDestinationIndex(-1);
     }
   }, [activeClienteId, clientes]);
@@ -369,6 +369,17 @@ export default function App() {
   const [adminFormVeiculoPlaca, setAdminFormVeiculoPlaca] = useState('');
   const [clientDestination, setClientDestination] = useState<string>('');
   const [selectedDestinationIndex, setSelectedDestinationIndex] = useState<number>(-1);
+  const [selectedDestination, setSelectedDestination] = useState<any | null>(null);
+  const [mapClickTargetMode, setMapClickTargetMode] = useState<'PARTIDA' | 'DESTINO'>('DESTINO');
+  const [liveGoogleSuggestions, setLiveGoogleSuggestions] = useState<Array<{
+    nome: string;
+    coords?: { lat: number; lng: number };
+    distance?: number;
+    placeId?: string;
+    isGooglePlace?: boolean;
+    description?: string;
+  }>>([]);
+  const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
   const [calculatedTrip, setCalculatedTrip] = useState<{
     distancia: number;
     duracao: number;
@@ -377,9 +388,24 @@ export default function App() {
 
   const getPopularDestinationsForCity = (cityName: string) => {
     const cityLower = (cityName || '').toLowerCase();
-    if (cityLower.includes('itaberai') || cityLower.includes('itaberaí') || cityLower.includes('goiás') || cityLower.includes('go')) {
+    if (cityLower.includes('itaberai') || cityLower.includes('itaberaí') || cityLower.includes('goiânia') || cityLower.includes('goiania') || cityLower.includes('goiás') || cityLower.includes('go')) {
       return [
-        { nome: 'Praça Senador Silva Canedo - Centro', coords: { lat: -16.0232, lng: -49.8080 }, distance: 2.1 },
+        { nome: 'Goiânia Shopping - Setor Bueno, Goiânia', coords: { lat: -16.7093, lng: -49.2778 }, distance: 5.5 },
+        { nome: 'Flamboyant Shopping - Jardim Goiás, Goiânia', coords: { lat: -16.7097, lng: -49.2312 }, distance: 7.2 },
+        { nome: 'Parque Vaca Brava - Setor Bueno, Goiânia', coords: { lat: -16.7077, lng: -49.2764 }, distance: 5.3 },
+        { nome: 'Praça Cívica - Centro, Goiânia', coords: { lat: -16.6791, lng: -49.2562 }, distance: 1.2 },
+        { nome: 'Aeroporto Internacional Santa Genoveva - Goiânia', coords: { lat: -16.6329, lng: -49.2223 }, distance: 12.5 },
+        { nome: 'Terminal Rodoviário de Goiânia - Centro', coords: { lat: -16.6612, lng: -49.2642 }, distance: 2.1 },
+        { nome: 'Parque Flamboyant - Jardim Goiás, Goiânia', coords: { lat: -16.7115, lng: -49.2384 }, distance: 7.5 },
+        { nome: 'Bosque dos Buritis - Setor Oeste, Goiânia', coords: { lat: -16.6806, lng: -49.2625 }, distance: 1.8 },
+        { nome: 'Passeio das Águas Shopping - Goiânia', coords: { lat: -16.6212, lng: -49.2690 }, distance: 9.8 },
+        { nome: 'Praça Universitária - Setor Universitário, Goiânia', coords: { lat: -16.6775, lng: -49.2435 }, distance: 3.4 },
+        { nome: 'Santa Casa de Misericórdia - Goiânia', coords: { lat: -16.6872, lng: -49.2356 }, distance: 4.1 },
+        { nome: 'Goiânia Arena - Setor de Recreação', coords: { lat: -16.6955, lng: -49.2285 }, distance: 8.0 },
+        { nome: 'Parque Areião - Setor Pedro Ludovico, Goiânia', coords: { lat: -16.7160, lng: -49.2600 }, distance: 6.2 },
+        { nome: 'Supermercado Bretas - Setor Sol Nascente, Goiânia', coords: { lat: -16.6910, lng: -49.2890 }, distance: 7.0 },
+        { nome: 'UNIP Campus Goiânia - BR-153', coords: { lat: -16.7210, lng: -49.2490 }, distance: 8.3 },
+        { nome: 'Praça Senador Silva Canedo - Centro, Itaberaí', coords: { lat: -16.0232, lng: -49.8080 }, distance: 2.1 },
         { nome: 'Lago Municipal de Itaberaí - Parque', coords: { lat: -16.0315, lng: -49.8142 }, distance: 3.5 },
         { nome: 'Parque Ecológico de Itaberaí - Natureza', coords: { lat: -16.0150, lng: -49.8010 }, distance: 4.8 },
         { nome: 'Terminal Rodoviário de Itaberaí', coords: { lat: -16.0270, lng: -49.8095 }, distance: 1.5 },
@@ -601,9 +627,10 @@ export default function App() {
 
   // Auto calculate trip cost whenever settings, destinations, or custom GPS coordinates change
   useEffect(() => {
-    if (selectedDestinationIndex >= 0) {
-      const dest = popularDestinations[selectedDestinationIndex];
-      
+    // Resolve destination from either our dynamic selection or index-based fallback
+    const dest = selectedDestination || (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex] : null);
+    
+    if (dest) {
       // High precision dynamic distance calculation based on live client location vs destination coords
       let dist = dest.distance;
       if (clientCustomCoords) {
@@ -628,7 +655,180 @@ export default function App() {
     } else {
       setCalculatedTrip(null);
     }
-  }, [selectedDestinationIndex, config, clientCustomCoords]);
+  }, [selectedDestination, selectedDestinationIndex, config, clientCustomCoords]);
+
+  // Real-time Google Places Autocomplete API with debounce and Goiás bias
+  useEffect(() => {
+    if (!clientDestination || clientDestination.trim().length < 2) {
+      setLiveGoogleSuggestions([]);
+      setIsSearchingSuggestions(false);
+      return;
+    }
+
+    const g = (window as any).google;
+    if (g && g.maps && g.maps.places) {
+      setIsSearchingSuggestions(true);
+      const timer = setTimeout(() => {
+        try {
+          const autocompleteService = new g.maps.places.AutocompleteService();
+          
+          // Bias coordinates: current user location or Goiânia/Itaberaí central area
+          const biasCoords = clientCustomCoords || { lat: -16.0270, lng: -49.8095 };
+          const biasBounds = new g.maps.LatLngBounds(
+            new g.maps.LatLng(biasCoords.lat - 1.5, biasCoords.lng - 1.5),
+            new g.maps.LatLng(biasCoords.lat + 1.5, biasCoords.lng + 1.5)
+          );
+
+          autocompleteService.getPlacePredictions({
+            input: clientDestination,
+            bounds: biasBounds,
+            componentRestrictions: { country: 'br' },
+          }, (predictions: any, status: any) => {
+            setIsSearchingSuggestions(false);
+            if (status === g.maps.places.PlacesServiceStatus.OK && predictions) {
+              const formattedList = predictions.map((pred: any) => ({
+                nome: pred.description,
+                placeId: pred.place_id,
+                isGooglePlace: true,
+                description: pred.structured_formatting?.secondary_text || ''
+              }));
+              setLiveGoogleSuggestions(formattedList);
+            } else {
+              setLiveGoogleSuggestions([]);
+            }
+          });
+        } catch (err) {
+          console.error("Erro no AutocompleteService:", err);
+          setIsSearchingSuggestions(false);
+        }
+      }, 350); // 350ms debounce
+      return () => clearTimeout(timer);
+    } else {
+      setIsSearchingSuggestions(false);
+      setLiveGoogleSuggestions([]);
+    }
+  }, [clientDestination, clientCustomCoords]);
+
+  // Handle click on a Google prediction: resolve place_id to lat/long
+  const handleSelectGooglePlace = (sug: any) => {
+    const g = (window as any).google;
+    if (!g || !g.maps) return;
+    
+    addNotification("Obtendo localização exata e calculando rota...", "info");
+    const geocoder = new g.maps.Geocoder();
+    geocoder.geocode({ placeId: sug.placeId }, (results: any, status: any) => {
+      if (status === 'OK' && results[0]) {
+        const loc = results[0].geometry.location;
+        const coords = { lat: loc.lat(), lng: loc.lng() };
+        
+        let dist = 6.0; // fallback default
+        if (clientCustomCoords) {
+          dist = Number(getCoordinatesDistanceKm(clientCustomCoords, coords).toFixed(1));
+          if (dist <= 0) dist = 0.5;
+        }
+
+        const selectedDestObj = {
+          nome: sug.nome,
+          coords: coords,
+          distance: dist
+        };
+
+        // Update states to lock in selection
+        setSelectedDestination(selectedDestObj);
+        setClientDestination(sug.nome);
+        setSelectedDestinationIndex(-100); // special flag for dynamic place selection
+        addNotification(`Destino confirmado: ${sug.nome.split(',')[0]}`, "success");
+      } else {
+        addNotification("Erro ao obter dados do Google Maps para esse local.", "warn");
+      }
+    });
+  };
+
+  // Live taximeter/real-time pricing update engine
+  useEffect(() => {
+    const activeAndamentos = corridas.filter(c => c.status === 'EM_ANDAMENTO');
+    if (activeAndamentos.length === 0) return;
+
+    const intervalId = setInterval(() => {
+      setCorridas(prev => prev.map(c => {
+        if (c.status === 'EM_ANDAMENTO') {
+          // Increment simulated traveled distance smoothly (since total trip simulation is 8s)
+          const currentDist = c.distanciaPercorrida || 0;
+          // Each second represents 1/8th of the total trip distance
+          const distanceStep = c.distancia / 8;
+          const nextDistCovered = Math.min(currentDist + distanceStep, c.distancia);
+          
+          // Calculate fare: Starting base is R$ 7.00 plus R$ 0.60 per each 100m (0.1 km) traveled
+          const blocksOf100m = Math.floor(nextDistCovered * 10);
+          const nextVal = 7.00 + (blocksOf100m * 0.60);
+          
+          return { 
+            ...c, 
+            distanciaPercorrida: Number(nextDistCovered.toFixed(3)),
+            valor: Number(nextVal.toFixed(2)) 
+          };
+        }
+        return c;
+      }));
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [corridas.map(c => `${c.id}-${c.status}`).join(',')]);
+
+  const handleQuickTaxiRequest = () => {
+    let dest = selectedDestination || (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex] : null);
+
+    if (!dest) {
+      dest = {
+        nome: "Goiânia Shopping - Setor Bueno, Goiânia",
+        coords: { lat: -16.7093, lng: -49.2778 },
+        distance: 5.5
+      };
+      setSelectedDestination(dest);
+      setClientDestination(dest.nome);
+      setSelectedDestinationIndex(-100);
+    }
+
+    const cli = clientes.find(c => c.id === activeClienteId);
+    if (!cli) return;
+
+    const basePrice = config.precoBase || 5.00;
+    const computedOriginCoords = clientCustomCoords || getCityCenterCoords(cli.cidade || 'Goiânia');
+
+    const taxiCorrida: Corrida = {
+      id: 'cr-quick-' + Date.now() + '-' + Math.floor(Math.random() * 1000000),
+      clienteId: activeClienteId,
+      clienteNome: users.find(u => u.id === cli.userId)?.nome || 'Cliente Rápido',
+      clienteTelefone: users.find(u => u.id === cli.userId)?.telefone || '(62) 99312-8800',
+      origem: clientOrigin.trim() === '' ? 'Goiânia (Local)' : clientOrigin,
+      destino: dest.nome,
+      origemCoords: computedOriginCoords,
+      destinoCoords: dest.coords,
+      distancia: dest.distance,
+      duracao: Math.round(dest.distance * 1.8),
+      valor: 0.00, // Zeroed out initially before onboarding
+      status: 'MOTORISTA_A_CAMINHO',
+      isTaximetroRide: true,
+      taximetroActive: false,
+      createdAt: new Date().toISOString()
+    };
+
+    const firstMot = motoristas.find(m => m.documentoStatus === 'APROVADO' && m.isSubscriptionPaid) || motoristas[0];
+    const motUser = firstMot ? users.find(u => u.id === firstMot.userId) : null;
+
+    taxiCorrida.motoristaId = firstMot?.id || 'm-1';
+    taxiCorrida.motoristaNome = motUser?.nome || 'Carlos Eduardo (Parceiro Rápido)';
+    taxiCorrida.motoristaPlaca = firstMot?.veiculo.placa || 'QQX-3A45';
+    taxiCorrida.motoristaModelo = firstMot ? `${firstMot.veiculo.marca} ${firstMot.veiculo.modelo} (${firstMot.veiculo.cor})` : 'Toyota Corolla (Prata)';
+    taxiCorrida.motoristaAvatar = motUser?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150';
+
+    if (firstMot) {
+      setMotoristas(prev => prev.map(m => m.id === firstMot.id ? { ...m, isOnline: true } : m));
+    }
+
+    setCorridas(prev => [taxiCorrida, ...prev]);
+    addNotification("⚡ Corrida Rápida Ativa! Carlos Eduardo aceitou e está a caminho do seu local de embarque!", "success");
+  };
 
   // --- ACTIVE CORRIDA STATE HANDLERS ---
   const currentActiveCorrida = corridas.find(
@@ -638,11 +838,13 @@ export default function App() {
 
   // Handle Client Requesting ride
   const handleRequestRide = () => {
-    if (selectedDestinationIndex < 0) {
-      addNotification("Selecione um destino do roteiro!", "warn");
+    // Resolve destination from either our dynamic selection or index-based fallback
+    const dest = selectedDestination || (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex] : null);
+
+    if (!dest) {
+      addNotification("Por favor, digite e selecione um destino de chegada!", "warn");
       return;
     }
-    const dest = popularDestinations[selectedDestinationIndex];
     const cli = clientes.find(c => c.id === activeClienteId);
     if (!cli) return;
     const isBlocked = users.find(u => u.id === cli.userId)?.status === 'BLOQUEADO';
@@ -666,8 +868,9 @@ export default function App() {
       destinoCoords: dest.coords,
       distancia: dest.distance,
       duracao: calculatedTrip?.duracao || 10,
-      valor: value,
+      valor: 0.00, // Zeroed out initially before onboarding
       status: 'SOLICITADA',
+      isTaximetroRide: true,
       createdAt: new Date().toISOString()
     };
 
@@ -721,11 +924,17 @@ export default function App() {
   const handleStartTrip = (corridaId: string) => {
     setCorridas(prev => prev.map(c => {
       if (c.id === corridaId) {
-        return { ...c, status: 'EM_ANDAMENTO' };
+        return { 
+          ...c, 
+          status: 'EM_ANDAMENTO',
+          valor: 7.00, // Starts immediately with the base minimum tariff of R$ 7,00 upon passenger boarding
+          distanciaPercorrida: 0.0,
+          taximetroActive: true
+        };
       }
       return c;
     }));
-    addNotification("Passageiro a bordo! Iniciando trajeto até o destino.", "info");
+    addNotification("Passageiro a bordo! Iniciando trajeto até o destino. Tarifa inicial de R$ 7,00 ativada no taxímetro!", "info");
   };
 
   // Skip simulation state manually to Concluida
@@ -1324,7 +1533,7 @@ export default function App() {
             <div className="flex items-center gap-4.5 justify-center lg:justify-start">
               <CaronaLogo className="w-24 h-24" animated={true} />
               <div>
-                <h1 className="font-extrabold text-3.5xl tracking-tight text-white leading-none">CARONA</h1>
+                <h1 className="font-extrabold text-3.5xl tracking-tight text-white leading-none"><span className="text-emerald-400">CAR</span>ONA</h1>
                 <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1">Sua Mobilidade Regional</p>
               </div>
             </div>
@@ -1755,7 +1964,7 @@ export default function App() {
             animated={activePortal === 'CLIENTE'} 
           />
           <div>
-            <h1 className="font-extrabold text-xl leading-tight tracking-tight text-white">CARONA</h1>
+            <h1 className="font-extrabold text-xl leading-tight tracking-tight text-white"><span className="text-emerald-400">CAR</span>ONA</h1>
             {activePortal === 'ADMIN' ? (
               <p className="text-[10px] text-emerald-400 font-medium uppercase tracking-widest">Admin Master</p>
             ) : activePortal === 'CLIENTE' ? (
@@ -2740,7 +2949,45 @@ export default function App() {
                     <MapPin className="text-emerald-700 shrink-0" size={20} />
                     Para onde vamos?
                   </h2>
-                  <p className="text-[10px] text-slate-500 mt-1">Clique no mapa para mudar seu ponto de partida ou busque abaixo</p>
+                  
+                  {/* Interactive toggle for map clicks target */}
+                  <div className="mt-3.5 bg-stone-100 p-1 rounded-xl border border-zinc-200/60 max-w-xs mx-auto flex">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMapClickTargetMode('PARTIDA');
+                        addNotification("Modo de clique no mapa: Alterado para definir ponto de PARTIDA!", "info");
+                      }}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 hover:cursor-pointer ${
+                        mapClickTargetMode === 'PARTIDA'
+                          ? 'bg-zinc-900 text-white shadow-sm'
+                          : 'text-zinc-500 hover:text-zinc-950'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                      Marcar Partida
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMapClickTargetMode('DESTINO');
+                        addNotification("Modo de clique no mapa: Alterado para definir ponto de CHEGADA!", "info");
+                      }}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 hover:cursor-pointer ${
+                        mapClickTargetMode === 'DESTINO'
+                          ? 'bg-emerald-700 text-white shadow-sm'
+                          : 'text-zinc-500 hover:text-zinc-950'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>
+                      Marcar Chegada
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-2">
+                    {mapClickTargetMode === 'PARTIDA' 
+                      ? '💡 Clique no mapa para definir seu ponto de Partida'
+                      : '💡 Clique no mapa para marcar seu Destino e calcular a rota na hora!'}
+                  </p>
                 </div>
 
                 <div className="space-y-4">
@@ -2787,7 +3034,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Destination list selector */}
+                   {/* Destination list selector */}
                   <div>
                     <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Para onde vamos? (Destino)</label>
                     
@@ -2799,10 +3046,10 @@ export default function App() {
                         onChange={(e) => {
                           const query = e.target.value;
                           setClientDestination(query);
-                          // Reset selection index to search mode
                           setSelectedDestinationIndex(-1);
+                          setSelectedDestination(null);
                         }}
-                        placeholder="Digite o local ou endereço de chegada..."
+                        placeholder="Digite o local, bairro ou cidade de chegada..."
                         className="w-full text-xs pl-3 pr-20 py-2.5 border border-zinc-200 rounded-lg bg-stone-50 text-slate-800 placeholder-slate-400 font-medium focus:outline-none focus:ring-1 focus:ring-emerald-600 transition"
                       />
                       {clientDestination && (
@@ -2811,6 +3058,7 @@ export default function App() {
                           onClick={() => {
                             setClientDestination('');
                             setSelectedDestinationIndex(-1);
+                            setSelectedDestination(null);
                             addNotification("Pesquisa limpa!", "info");
                           }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-400 hover:text-red-500 bg-zinc-100 hover:bg-zinc-200/60 px-2 py-1 rounded cursor-pointer transition"
@@ -2822,37 +3070,66 @@ export default function App() {
 
                     {/* Suggestions list of destinations */}
                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                      {filteredDestinations.length === 0 ? (
-                        <div className="text-center py-4 text-xs text-zinc-400 bg-zinc-50 rounded-lg border border-dashed border-zinc-200">
-                          Nenhum local encontrado para "{clientDestination}"
+                      {isSearchingSuggestions ? (
+                        <div className="text-center py-4 text-xs text-emerald-800 flex items-center justify-center gap-2">
+                          <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                          <span>Buscando endereços reais...</span>
                         </div>
+                      ) : liveGoogleSuggestions.length > 0 ? (
+                        /* Real-world Google predictions */
+                        liveGoogleSuggestions.map((sug) => (
+                          <button
+                            key={sug.placeId || sug.nome}
+                            onClick={() => handleSelectGooglePlace(sug)}
+                            className="w-full text-left p-2.5 rounded-lg border border-zinc-250 hover:bg-emerald-50/50 hover:border-emerald-300 text-xs transition duration-150 flex items-start gap-2 hover:cursor-pointer"
+                          >
+                            <MapPin size={14} className="mt-0.5 text-emerald-600 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-slate-800 truncate">{sug.nome.split(',')[0]}</div>
+                              <span className="text-[10px] text-zinc-500 block truncate">{sug.nome}</span>
+                            </div>
+                          </button>
+                        ))
                       ) : (
-                        filteredDestinations.map((dest) => {
-                          const idx = popularDestinations.findIndex(p => p.nome === dest.nome);
-                          return (
-                            <button
-                              key={dest.nome}
-                              onClick={() => {
-                                setClientDestination(dest.nome);
-                                setSelectedDestinationIndex(idx);
-                                addNotification(`Destino selecionado: ${dest.nome.split('-')[0]}`, "success");
-                              }}
-                              className={`w-full text-left p-2.5 rounded-lg border text-xs transition-all duration-150 flex items-start gap-2 hover:cursor-pointer ${
-                                selectedDestinationIndex === idx
-                                  ? 'border-emerald-600 bg-emerald-50/50 text-emerald-950 font-semibold shadow-sm'
-                                  : 'border-zinc-200 hover:bg-zinc-50'
-                              }`}
-                            >
-                              <MapPin size={14} className={`mt-0.5 shrink-0 ${selectedDestinationIndex === idx ? 'text-emerald-600' : 'text-zinc-400'}`} />
-                              <div>
-                                <div className="font-bold">{dest.nome.split('-')[0]}</div>
-                                <span className="text-[10px] text-zinc-500">
-                                  {dest.distance} Km (Est: {Math.round(dest.distance * 2.8)} min)
-                                </span>
+                        /* Our highly polished offline search catalog fallback (Fuzzy filter Goiânia & Itaberaí) */
+                        (() => {
+                          if (filteredDestinations.length === 0) {
+                            return (
+                              <div className="text-center py-4 text-xs text-zinc-400 bg-zinc-50 rounded-lg border border-dashed border-zinc-200">
+                                Nenhum local encontrado para "{clientDestination}"
                               </div>
-                            </button>
-                          );
-                        })
+                            );
+                          }
+                          return filteredDestinations.map((dest) => {
+                            const idx = popularDestinations.findIndex(p => p.nome === dest.nome);
+                            const isSelected = selectedDestinationIndex === idx || (selectedDestination && selectedDestination.nome === dest.nome);
+                            return (
+                              <button
+                                key={dest.nome}
+                                onClick={() => {
+                                  setSelectedDestination(dest);
+                                  setClientDestination(dest.nome);
+                                  setSelectedDestinationIndex(idx);
+                                  addNotification(`Destino selecionado: ${dest.nome.split(' - ')[0]}`, "success");
+                                }}
+                                className={`w-full text-left p-2.5 rounded-lg border text-xs transition-all duration-150 flex items-start gap-2 hover:cursor-pointer ${
+                                  isSelected
+                                    ? 'border-emerald-600 bg-emerald-50/50 text-emerald-950 font-semibold shadow-sm'
+                                    : 'border-zinc-200 hover:bg-zinc-50'
+                                }`}
+                              >
+                                <MapPin size={14} className={`mt-0.5 shrink-0 ${isSelected ? 'text-emerald-600' : 'text-zinc-450'}`} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-bold text-slate-800 truncate">{dest.nome.split(' - ')[0]}</div>
+                                  <span className="text-[10px] text-zinc-500 block truncate">{dest.nome}</span>
+                                  <span className="text-[9px] text-emerald-700 bg-emerald-50/70 px-1 py-0.5 rounded inline-block mt-0.5 font-medium">
+                                    {dest.distance} Km (Est: {Math.round(dest.distance * 2.8)} min)
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          });
+                        })()
                       )}
                     </div>
                   </div>
@@ -2874,7 +3151,7 @@ export default function App() {
                       </div>
 
                       {/* Explicit Minimum Price Warning (Valor minimo de corrida e de 7 reais) */}
-                      {popularDestinations[selectedDestinationIndex]?.distance * config.precoKm + config.precoBase < 7.00 && (
+                      {calculatedTrip.valor === 7.00 && calculatedTrip.distancia * config.precoKm + config.precoBase < 7.00 && (
                         <div className="text-[10px] font-semibold text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 mt-1 flex items-center gap-1.5">
                           <ShieldAlert size={12} className="shrink-0" />
                           <span>Tarifa mínima aplicada de R$ 7,00 para este trajeto!</span>
@@ -2890,13 +3167,34 @@ export default function App() {
                       <span className="text-[10px] text-emerald-400 mt-0.5 block uppercase tracking-widest font-bold">Acompanhe no mapa ao lado</span>
                     </div>
                   ) : (
-                    <button
-                      onClick={handleRequestRide}
-                      disabled={selectedDestinationIndex < 0}
-                      className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl text-sm shadow transition hover:cursor-pointer"
-                    >
-                      Solicitar Carona 🚀
-                    </button>
+                    <div className="space-y-2 mt-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1 px-1 flex items-center justify-between">
+                        <span>Escolha a forma de chamada:</span>
+                        <span className="text-emerald-700 font-extrabold animate-pulse">NOVO ⚡</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={handleRequestRide}
+                          disabled={!selectedDestination && selectedDestinationIndex < 0}
+                          className="w-full bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 px-2 rounded-xl text-xs shadow transition hover:cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Car size={13} />
+                          Solicitar Carona 🚀
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleQuickTaxiRequest}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-2 rounded-xl text-xs shadow transition hover:cursor-pointer flex items-center justify-center gap-1.5 border border-emerald-500 relative overflow-hidden group focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        >
+                          <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-emerald-400 to-transparent opacity-10 animate-pulse"></span>
+                          <span>⚡ Chamar motorista rapidamente !</span>
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-slate-400 text-center px-1">
+                        A opção <strong>Corrida Rápida</strong> inicia a viagem com taxímetro em tempo real após o embarque!
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2920,9 +3218,20 @@ export default function App() {
                       <h3 className="text-base font-bold text-zinc-900 mt-2">
                         Trajeto: {currentActiveCorrida.origem ? currentActiveCorrida.origem.split(',')[0] : 'Origem'} com destino a {currentActiveCorrida.destino ? currentActiveCorrida.destino.split(',')[0] : 'Destino'}
                       </h3>
-                      <div className="text-xs text-zinc-600 mt-1 flex items-center gap-3">
-                        <span>Distância: <strong>{currentActiveCorrida.distancia} Km</strong></span>
+                       <div className="text-xs text-zinc-600 mt-1 flex flex-wrap items-center gap-3">
+                        <span>Distância Total: <strong>{currentActiveCorrida.distancia} Km</strong></span>
+                        {currentActiveCorrida.status === 'EM_ANDAMENTO' && currentActiveCorrida.distanciaPercorrida !== undefined && (
+                          <span className="bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded font-bold border border-emerald-100 font-mono">
+                            Trajeto Percorrido: {currentActiveCorrida.distanciaPercorrida.toFixed(1)} km ({(currentActiveCorrida.distanciaPercorrida * 1000).toFixed(0)}m)
+                          </span>
+                        )}
                         <span>Preço: <strong className="text-emerald-700 font-extrabold text-sm">R$ {currentActiveCorrida.valor.toFixed(2)}</strong></span>
+                        {currentActiveCorrida.isTaximetroRide && (
+                          <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 text-[10px] font-black px-2 py-0.5 rounded border border-red-100 animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></span>
+                            TAXÍMETRO: R$ 0,60 / 100m
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -2975,28 +3284,6 @@ export default function App() {
                       </div>
                     )}
                   </div>
-
-                  {/* Direct state skipper simulation widgets to make reviewing super simple */}
-                  <div className="mt-3 p-3 bg-zinc-100 rounded-lg flex flex-wrap gap-2 items-center justify-center border text-xs">
-                    <span className="font-bold text-zinc-600">Simulador de Movimento:</span>
-                    {currentActiveCorrida.status === 'MOTORISTA_A_CAMINHO' && (
-                      <button
-                        onClick={() => handleStartTrip(currentActiveCorrida.id)}
-                        className="bg-emerald-700 text-white px-3 py-1 rounded font-bold hover:cursor-pointer flex items-center gap-1 hover:bg-emerald-800"
-                      >
-                        Pasageiro Embarcou <ArrowRight size={12} />
-                      </button>
-                    )}
-                    {currentActiveCorrida.status === 'EM_ANDAMENTO' && (
-                      <button
-                        onClick={() => handleFinishTrip(currentActiveCorrida.id)}
-                        className="bg-emerald-700 text-white px-3 py-1 rounded font-bold hover:cursor-pointer flex items-center gap-1 hover:bg-emerald-800"
-                      >
-                        Chegar e Finalizar Corrida <Check size={12} />
-                      </button>
-                    )}
-                    <span className="text-[10px] text-zinc-400 italic">O veículo se moverá na simulação do mapa abaixo!</span>
-                  </div>
                 </div>
               ) : (
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center">
@@ -3013,36 +3300,72 @@ export default function App() {
               {/* SIMULATED GPS MAP INTERFACE */}
               <SimulatedMap
                 origemCoords={currentActiveCorrida?.origemCoords || (clientCustomCoords || getCityCenterCoords(currentPassengerCity))}
-                destinoCoords={currentActiveCorrida?.destinoCoords || (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex].coords : undefined)}
+                destinoCoords={currentActiveCorrida?.destinoCoords || (selectedDestination ? selectedDestination.coords : (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex].coords : undefined))}
                 origemNome={currentActiveCorrida?.origem ? currentActiveCorrida.origem.split(',')[0] : (clientCustomCoords ? "Sua Localização" : "Origem")}
-                destinoNome={currentActiveCorrida?.destino ? currentActiveCorrida.destino.split(',')[0] : (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex].nome.split('-')[0] : "Destino")}
+                destinoNome={currentActiveCorrida?.destino ? currentActiveCorrida.destino.split(',')[0] : (selectedDestination ? selectedDestination.nome.split(',')[0] : (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex].nome.split('-')[0] : "Destino"))}
                 status={currentActiveCorrida?.status}
                 onArrivedAtOrigin={() => {
                   if (currentActiveCorrida && currentActiveCorrida.status === 'MOTORISTA_A_CAMINHO') {
-                    // Auto advance trip
-                    handleStartTrip(currentActiveCorrida.id);
+                    addNotification("O motorista chegou ao seu local de embarque! Aguardando o condutor iniciar a corrida.", "info");
                   }
                 }}
                 onArrivedAtDestination={() => {
                   if (currentActiveCorrida && currentActiveCorrida.status === 'EM_ANDAMENTO') {
-                    // Auto complete
-                    handleFinishTrip(currentActiveCorrida.id);
+                    addNotification("Destino alcançado! Aguardando o condutor confirmar o recebimento e finalizar a corrida.", "success");
                   }
                 }}
                 onMapClick={(coords) => {
-                  setClientCustomCoords(coords);
-                  setClientOrigin("Local selecionado via Mapa");
-                  // Reverse geocode if Google Maps is active and present to fill human-readable address
-                  const g = (window as any).google;
-                  if (g && g.maps && g.maps.Geocoder) {
-                    const geocoder = new g.maps.Geocoder();
-                    geocoder.geocode({ location: coords }, (results: any, status: any) => {
-                      if (status === 'OK' && results[0]) {
-                        setClientOrigin(results[0].formatted_address);
-                      }
-                    });
+                  if (mapClickTargetMode === 'PARTIDA') {
+                    setClientCustomCoords(coords);
+                    setClientOrigin("Local selecionado via Mapa");
+                    // Reverse geocode if Google Maps is active and present to fill human-readable address
+                    const g = (window as any).google;
+                    if (g && g.maps && g.maps.Geocoder) {
+                      const geocoder = new g.maps.Geocoder();
+                      geocoder.geocode({ location: coords }, (results: any, status: any) => {
+                        if (status === 'OK' && results[0]) {
+                          setClientOrigin(results[0].formatted_address);
+                        }
+                      });
+                    }
+                    addNotification("Ponto de partida atualizado via clique no mapa!", "success");
+                  } else {
+                    // Mark destination (ponto de chegada) on map
+                    let dist = 6.0; // default fallback
+                    const basePoint = clientCustomCoords || getCityCenterCoords(currentPassengerCity);
+                    if (basePoint) {
+                      dist = Number(getCoordinatesDistanceKm(basePoint, coords).toFixed(1));
+                      if (dist <= 0) dist = 0.5;
+                    }
+
+                    const selectedDestObj = {
+                      nome: "Ponto marcado no Mapa",
+                      coords: coords,
+                      distance: dist
+                    };
+
+                    setSelectedDestination(selectedDestObj);
+                    setClientDestination("Ponto marcado no Mapa");
+                    setSelectedDestinationIndex(-100);
+
+                    // Reverse geocode destination to fill human-readable address
+                    const g = (window as any).google;
+                    if (g && g.maps && g.maps.Geocoder) {
+                      const geocoder = new g.maps.Geocoder();
+                      geocoder.geocode({ location: coords }, (results: any, status: any) => {
+                        if (status === 'OK' && results[0]) {
+                          const formattedPath = results[0].formatted_address;
+                          setSelectedDestination({
+                            nome: formattedPath,
+                            coords: coords,
+                            distance: dist
+                          });
+                          setClientDestination(formattedPath);
+                        }
+                      });
+                    }
+                    addNotification("Local de chegada definido via mapa! Rota calculada com sucesso.", "success");
                   }
-                  addNotification("Local de partida atualizado clicando no mapa!", "success");
                 }}
               />
 
@@ -3558,11 +3881,21 @@ export default function App() {
                             })()}
                             <p className="text-xs text-slate-600 mt-1">Origem: <strong>{activeSelfCorrida.origem}</strong></p>
                             <p className="text-xs text-slate-600">Destino: <strong>{activeSelfCorrida.destino}</strong></p>
+                            {activeSelfCorrida.status === 'EM_ANDAMENTO' && activeSelfCorrida.distanciaPercorrida !== undefined && (
+                              <p className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded inline-block mt-1 border border-emerald-100">
+                                Percorrido: {activeSelfCorrida.distanciaPercorrida.toFixed(1)} km ({(activeSelfCorrida.distanciaPercorrida * 1000).toFixed(0)}m)
+                              </p>
+                            )}
                           </div>
                           
                           <div className="text-right">
                             <span className="text-[10px] text-zinc-500 uppercase block">VALOR PRESTADO</span>
                             <strong className="text-base font-extrabold text-emerald-700">R$ {activeSelfCorrida.valor.toFixed(2)}</strong>
+                            {activeSelfCorrida.isTaximetroRide && (
+                              <span className="block text-[9px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-black mt-1 animate-pulse">
+                                TAXÍMETRO: R$ 0,60 / 100m ⚡
+                              </span>
+                            )}
                             <span className="text-[10px] text-zinc-400 block italic">Comissão: R$ {(activeSelfCorrida.valor * (config.comissaoPercentual/100)).toFixed(2)} ({config.comissaoPercentual}%)</span>
                           </div>
                         </div>
@@ -3570,20 +3903,22 @@ export default function App() {
                         {/* Interactive flow button controls to simulate transport progression */}
                         <div className="bg-white p-3 rounded-lg border flex flex-wrap gap-2 items-center justify-between text-xs">
                           <div>
-                            <span className="font-bold text-slate-700 block">Status: {activeSelfCorrida.status}</span>
-                            <span className="text-[10px] text-slate-400">Acompanhamento simulado ativo no mapa do portal Cliente.</span>
+                            <span className="font-bold text-slate-700 block text-xs uppercase">Ações do Motorista:</span>
+                            <span className="text-[10px] text-slate-400">Acompanhe a corrida real abaixo e clique nos botões para progredir a viagem.</span>
                           </div>
 
                           <div className="flex gap-2">
                             {activeSelfCorrida.status === 'MOTORISTA_A_CAMINHO' && (
                               <>
                                 <button
+                                  type="button"
                                   onClick={() => handleCancelRide(activeSelfCorrida.id, 'MOTORISTA')}
-                                  className="bg-rose-50 border border-rose-300 hover:bg-rose-100 text-rose-700 px-3 py-2 rounded-lg font-bold hover:cursor-pointer transition-all text-xs"
+                                  className="bg-rose-100 border border-rose-300 hover:bg-rose-200 text-rose-800 px-3 py-2 rounded-lg font-bold hover:cursor-pointer transition-all text-xs"
                                 >
                                   CANCELAR CORRIDA ❌
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() => handleStartTrip(activeSelfCorrida.id)}
                                   className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-2 rounded-lg font-bold hover:cursor-pointer transition-all text-xs"
                                 >
@@ -3594,13 +3929,31 @@ export default function App() {
 
                             {activeSelfCorrida.status === 'EM_ANDAMENTO' && (
                               <button
+                                type="button"
                                 onClick={() => handleFinishTrip(activeSelfCorrida.id)}
-                                className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-bold hover:cursor-pointer transition-all text-xs"
+                                className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-bold hover:cursor-pointer transition-all text-xs border border-emerald-600 animate-pulse"
                               >
-                                FINALIZAR CORRIDA E RECEBER R$ 🏁
+                                CONFIRMAR CORRIDA E RECEBER ! 🏁
                               </button>
                             )}
                           </div>
+                        </div>
+
+                        {/* Real-time map tracking on the driver dashboard */}
+                        <div className="pt-2">
+                          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                            <span>Acompanhamento no Mapa (Visão do Condutor):</span>
+                          </div>
+                          <SimulatedMap
+                            origemCoords={activeSelfCorrida.origemCoords}
+                            destinoCoords={activeSelfCorrida.destinoCoords}
+                            origemNome={activeSelfCorrida.origem ? activeSelfCorrida.origem.split(',')[0] : "Origem"}
+                            destinoNome={activeSelfCorrida.destino ? activeSelfCorrida.destino.split(',')[0] : "Destino"}
+                            status={activeSelfCorrida.status}
+                            onArrivedAtOrigin={() => {}}
+                            onArrivedAtDestination={() => {}}
+                          />
                         </div>
                       </div>
                     );
