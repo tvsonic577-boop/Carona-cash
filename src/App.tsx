@@ -208,6 +208,8 @@ export default function App() {
         const parsed = JSON.parse(saved);
         const merged = { ...INITIAL_CONFIG, ...parsed };
         merged.comissaoPercentual = Math.min(20, Math.max(1, merged.comissaoPercentual));
+        if (merged.taxaServicoFixaRegular === undefined) merged.taxaServicoFixaRegular = 1.00;
+        if (merged.taxaServicoFixaFranquia === undefined) merged.taxaServicoFixaFranquia = 1.00;
         return merged;
       } catch (e) {
         return INITIAL_CONFIG;
@@ -244,6 +246,21 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('cc_config', JSON.stringify(config));
   }, [config]);
+
+  const getMotoristaFranquia = (motoristaId?: string) => {
+    if (!motoristaId) return null;
+    const drv = motoristas.find(m => m.id === motoristaId);
+    if (!drv) return null;
+    return franqueados.find(f => f.cidade.toLowerCase() === drv.cidade.toLowerCase());
+  };
+
+  const getCorridaTaxaServico = (c: Corrida) => {
+    const activeFran = getMotoristaFranquia(c.motoristaId);
+    if (activeFran) {
+      return config.taxaServicoFixaFranquia !== undefined ? config.taxaServicoFixaFranquia : 1.00;
+    }
+    return config.taxaServicoFixaRegular !== undefined ? config.taxaServicoFixaRegular : 1.00;
+  };
 
   // --- Active Session Info ---
   // We provide a visual "Simulator Mode Selector" at the very top so the reviewer
@@ -580,6 +597,43 @@ export default function App() {
     return straightLineDist * 1.30;
   };
 
+  const handleSimulationUpdate = (corridaId: string, currentCoords: { lat: number; lng: number }) => {
+    setCorridas(prev => prev.map(c => {
+      if (c.id === corridaId) {
+        if (c.status === 'EM_ANDAMENTO') {
+          const distCalculated = getCoordinatesDistanceKm(c.origemCoords, currentCoords);
+          const nextDistCovered = Math.min(distCalculated, c.distancia);
+          const lastDistCovered = c.distanciaPercorrida || 0;
+
+          // update only if the distance increased or we reached completion
+          const isEnd = Math.abs(nextDistCovered - c.distancia) < 0.05;
+          if (nextDistCovered > lastDistCovered + 0.005 || (isEnd && nextDistCovered !== lastDistCovered) || c.currentDriverCoords?.lat !== currentCoords.lat) {
+            let nextVal = c.valor;
+            if (c.isTaximetroRide) {
+              const blocksOf100m = Math.floor(nextDistCovered * 10);
+              nextVal = 7.00 + (blocksOf100m * 0.60);
+            }
+            return {
+              ...c,
+              distanciaPercorrida: Number(nextDistCovered.toFixed(3)),
+              valor: Number(nextVal.toFixed(2)),
+              currentDriverCoords: currentCoords
+            };
+          }
+        } else if (c.status === 'MOTORISTA_A_CAMINHO') {
+          // Just update currentDriverCoords so both screens see driver position updating in real-time
+          if (c.currentDriverCoords?.lat !== currentCoords.lat || c.currentDriverCoords?.lng !== currentCoords.lng) {
+            return {
+              ...c,
+              currentDriverCoords: currentCoords
+            };
+          }
+        }
+      }
+      return c;
+    }));
+  };
+
   const getCityCenterCoords = (cityName: string) => {
     const currentCityLower = (cityName || '').toLowerCase();
     if (currentCityLower.includes('itaberai') || currentCityLower.includes('itaberaí') || currentCityLower.includes('goiás') || currentCityLower.includes('go')) {
@@ -748,36 +802,8 @@ export default function App() {
     });
   };
 
-  // Live taximeter/real-time pricing update engine
-  useEffect(() => {
-    const activeAndamentos = corridas.filter(c => c.status === 'EM_ANDAMENTO');
-    if (activeAndamentos.length === 0) return;
-
-    const intervalId = setInterval(() => {
-      setCorridas(prev => prev.map(c => {
-        if (c.status === 'EM_ANDAMENTO') {
-          // Increment simulated traveled distance smoothly (since total trip simulation is 8s)
-          const currentDist = c.distanciaPercorrida || 0;
-          // Each second represents 1/8th of the total trip distance
-          const distanceStep = c.distancia / 8;
-          const nextDistCovered = Math.min(currentDist + distanceStep, c.distancia);
-          
-          // Calculate fare: Starting base is R$ 7.00 plus R$ 0.60 per each 100m (0.1 km) traveled
-          const blocksOf100m = Math.floor(nextDistCovered * 10);
-          const nextVal = 7.00 + (blocksOf100m * 0.60);
-          
-          return { 
-            ...c, 
-            distanciaPercorrida: Number(nextDistCovered.toFixed(3)),
-            valor: Number(nextVal.toFixed(2)) 
-          };
-        }
-        return c;
-      }));
-    }, 1000);
-
-    return () => clearInterval(intervalId);
-  }, [corridas.map(c => `${c.id}-${c.status}`).join(',')]);
+  // Live pricing engine is completely coordinate-driven by the Map's path progression (in handleSimulationUpdate)
+  // to avoid any interval racing or inconsistencies.
 
   const handleQuickTaxiRequest = () => {
     let dest = selectedDestination || (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex] : null);
@@ -796,42 +822,70 @@ export default function App() {
     const cli = clientes.find(c => c.id === activeClienteId);
     if (!cli) return;
 
-    const basePrice = config.precoBase || 5.00;
-    const computedOriginCoords = clientCustomCoords || getCityCenterCoords(cli.cidade || 'Goiânia');
+    addNotification("Buscando sua localização precisa via GPS para o taxímetro...", "info");
 
-    const taxiCorrida: Corrida = {
-      id: 'cr-quick-' + Date.now() + '-' + Math.floor(Math.random() * 1000000),
-      clienteId: activeClienteId,
-      clienteNome: users.find(u => u.id === cli.userId)?.nome || 'Cliente Rápido',
-      clienteTelefone: users.find(u => u.id === cli.userId)?.telefone || '(62) 99312-8800',
-      origem: clientOrigin.trim() === '' ? 'Goiânia (Local)' : clientOrigin,
-      destino: dest.nome,
-      origemCoords: computedOriginCoords,
-      destinoCoords: dest.coords,
-      distancia: dest.distance,
-      duracao: Math.round(dest.distance * 1.8),
-      valor: 0.00, // Zeroed out initially before onboarding
-      status: 'MOTORISTA_A_CAMINHO',
-      isTaximetroRide: true,
-      taximetroActive: false,
-      createdAt: new Date().toISOString()
+    const launchTaxiWithCoords = (coords: { lat: number; lng: number }, isPrecisionGps: boolean) => {
+      setClientCustomCoords(coords);
+
+      const taxiCorrida: Corrida = {
+        id: 'cr-quick-' + Date.now() + '-' + Math.floor(Math.random() * 1000000),
+        clienteId: activeClienteId,
+        clienteNome: users.find(u => u.id === cli.userId)?.nome || 'Cliente Rápido',
+        clienteTelefone: users.find(u => u.id === cli.userId)?.telefone || '(62) 99312-8800',
+        origem: isPrecisionGps ? "Sua Localização Atual" : "Goiânia (Local)",
+        destino: dest!.nome,
+        origemCoords: coords,
+        destinoCoords: dest!.coords,
+        distancia: dest!.distance,
+        duracao: Math.round(dest!.distance * 1.8),
+        valor: 0.00, // Taximeter initially set to 0.00 until passenger boards!
+        status: 'MOTORISTA_A_CAMINHO',
+        isTaximetroRide: true,
+        taximetroActive: false,
+        createdAt: new Date().toISOString()
+      };
+
+      const firstMot = motoristas.find(m => m.documentoStatus === 'APROVADO' && m.isSubscriptionPaid) || motoristas[0];
+      const motUser = firstMot ? users.find(u => u.id === firstMot.userId) : null;
+
+      taxiCorrida.motoristaId = firstMot?.id || 'm-1';
+      taxiCorrida.motoristaNome = motUser?.nome || 'Carlos Eduardo (Parceiro Rápido)';
+      taxiCorrida.motoristaPlaca = firstMot?.veiculo.placa || 'QQX-3A45';
+      taxiCorrida.motoristaModelo = firstMot ? `${firstMot.veiculo.marca} ${firstMot.veiculo.modelo} (${firstMot.veiculo.cor})` : 'Toyota Corolla (Prata)';
+      taxiCorrida.motoristaAvatar = motUser?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150';
+
+      if (firstMot) {
+        setMotoristas(prev => prev.map(m => m.id === firstMot.id ? { ...m, isOnline: true } : m));
+      }
+
+      // Zeramos os campos de entrada do cliente e estados de pesquisa
+      setClientOrigin('');
+      setClientDestination('');
+      setSelectedDestination(null);
+      setSelectedDestinationIndex(-1);
+      setCalculatedTrip(null);
+
+      setCorridas(prev => [taxiCorrida, ...prev]);
+      addNotification("⚡ Corrida Rápida Ativa! Carlos Eduardo aceitou e está a caminho do seu local de embarque!", "success");
     };
 
-    const firstMot = motoristas.find(m => m.documentoStatus === 'APROVADO' && m.isSubscriptionPaid) || motoristas[0];
-    const motUser = firstMot ? users.find(u => u.id === firstMot.userId) : null;
-
-    taxiCorrida.motoristaId = firstMot?.id || 'm-1';
-    taxiCorrida.motoristaNome = motUser?.nome || 'Carlos Eduardo (Parceiro Rápido)';
-    taxiCorrida.motoristaPlaca = firstMot?.veiculo.placa || 'QQX-3A45';
-    taxiCorrida.motoristaModelo = firstMot ? `${firstMot.veiculo.marca} ${firstMot.veiculo.modelo} (${firstMot.veiculo.cor})` : 'Toyota Corolla (Prata)';
-    taxiCorrida.motoristaAvatar = motUser?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150';
-
-    if (firstMot) {
-      setMotoristas(prev => prev.map(m => m.id === firstMot.id ? { ...m, isOnline: true } : m));
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          launchTaxiWithCoords({ lat: latitude, lng: longitude }, true);
+        },
+        (error) => {
+          console.warn("Erro ao obter geolocalização exata, usando fallback:", error);
+          const fallbackCoords = clientCustomCoords || getCityCenterCoords(cli.cidade || 'Goiânia');
+          launchTaxiWithCoords(fallbackCoords, false);
+        },
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+      );
+    } else {
+      const fallbackCoords = clientCustomCoords || getCityCenterCoords(cli.cidade || 'Goiânia');
+      launchTaxiWithCoords(fallbackCoords, false);
     }
-
-    setCorridas(prev => [taxiCorrida, ...prev]);
-    addNotification("⚡ Corrida Rápida Ativa! Carlos Eduardo aceitou e está a caminho do seu local de embarque!", "success");
   };
 
   // --- ACTIVE CORRIDA STATE HANDLERS ---
@@ -872,9 +926,9 @@ export default function App() {
       destinoCoords: dest.coords,
       distancia: dest.distance,
       duracao: calculatedTrip?.duracao || 10,
-      valor: 0.00, // Zeroed out initially before onboarding
+      valor: value, // Seta o valor contratado prefixado imediatamente
       status: 'SOLICITADA',
-      isTaximetroRide: true,
+      isTaximetroRide: false, // Sem taxímetro na solicitação normal de carona
       createdAt: new Date().toISOString()
     };
 
@@ -926,19 +980,25 @@ export default function App() {
 
   // Skip simulation state manually to picked up / Em Viagem
   const handleStartTrip = (corridaId: string) => {
+    let isTaximetro = false;
     setCorridas(prev => prev.map(c => {
       if (c.id === corridaId) {
+        isTaximetro = !!c.isTaximetroRide;
         return { 
           ...c, 
           status: 'EM_ANDAMENTO',
-          valor: 7.00, // Starts immediately with the base minimum tariff of R$ 7,00 upon passenger boarding
+          valor: c.isTaximetroRide ? 7.00 : c.valor, // Only start at R$ 7.00 if taximetro is active. Otherwise use fixed price.
           distanciaPercorrida: 0.0,
-          taximetroActive: true
+          taximetroActive: !!c.isTaximetroRide
         };
       }
       return c;
     }));
-    addNotification("Passageiro a bordo! Iniciando trajeto até o destino. Tarifa inicial de R$ 7,00 ativada no taxímetro!", "info");
+    if (isTaximetro) {
+      addNotification("Passageiro a bordo! Iniciando trajeto até o destino. Tarifa inicial de R$ 7,00 ativada no taxímetro!", "info");
+    } else {
+      addNotification("Passageiro a bordo! Iniciando trajeto de carona compartilhada com preço fixo estabelecido de comum acordo!", "success");
+    }
   };
 
   // Skip simulation state manually to Concluida
@@ -949,6 +1009,14 @@ export default function App() {
       }
       return c;
     }));
+
+    // Reset client inputs and states to give options for a new ride
+    setClientDestination('');
+    setSelectedDestinationIndex(-1);
+    setSelectedDestination(null);
+    setCalculatedTrip(null);
+    setClientOrigin('');
+
     addNotification("Corrida de transporte finalizada! Obrigado por dirigir com Carona.", "success");
   };
 
@@ -1502,7 +1570,7 @@ export default function App() {
   const adminUser = users.find(u => u.tipo === 'ADMINISTRADOR' && u.email.toLowerCase() === loggedInEmail.toLowerCase()) || users.find(u => u.tipo === 'ADMINISTRADOR');
   const totalCompletedRides = corridas.filter(c => c.status === 'CONCLUIDA');
   const totalVolumeGross = totalCompletedRides.reduce((sum, item) => sum + item.valor, 0);
-  const totalPlatformComission = totalVolumeGross * (config.comissaoPercentual / 100);
+  const totalPlatformComission = totalCompletedRides.reduce((sum, item) => sum + getCorridaTaxaServico(item), 0);
 
   // --- LOGIN & REGISTRATION FULL PAGE GATEWAY ---
   if (!isLoggedIn) {
@@ -3308,6 +3376,12 @@ export default function App() {
                 origemNome={currentActiveCorrida?.origem ? currentActiveCorrida.origem.split(',')[0] : (clientCustomCoords ? "Sua Localização" : "Origem")}
                 destinoNome={currentActiveCorrida?.destino ? currentActiveCorrida.destino.split(',')[0] : (selectedDestination ? selectedDestination.nome.split(',')[0] : (selectedDestinationIndex >= 0 ? popularDestinations[selectedDestinationIndex].nome.split('-')[0] : "Destino"))}
                 status={currentActiveCorrida?.status}
+                driverCoords={currentActiveCorrida?.currentDriverCoords}
+                onSimulationUpdate={(coords) => {
+                  if (currentActiveCorrida) {
+                    handleSimulationUpdate(currentActiveCorrida.id, coords);
+                  }
+                }}
                 onArrivedAtOrigin={() => {
                   if (currentActiveCorrida && currentActiveCorrida.status === 'MOTORISTA_A_CAMINHO') {
                     addNotification("O motorista chegou ao seu local de embarque! Aguardando o condutor iniciar a corrida.", "info");
@@ -3900,7 +3974,7 @@ export default function App() {
                                 TAXÍMETRO: R$ 0,60 / 100m ⚡
                               </span>
                             )}
-                            <span className="text-[10px] text-zinc-400 block italic">Comissão: R$ {(activeSelfCorrida.valor * (config.comissaoPercentual/100)).toFixed(2)} ({config.comissaoPercentual}%)</span>
+                            <span className="text-[10px] text-zinc-400 block italic">Taxa de Serviço: R$ {getCorridaTaxaServico(activeSelfCorrida).toFixed(2)} (Fixo)</span>
                           </div>
                         </div>
 
@@ -3955,6 +4029,10 @@ export default function App() {
                             origemNome={activeSelfCorrida.origem ? activeSelfCorrida.origem.split(',')[0] : "Origem"}
                             destinoNome={activeSelfCorrida.destino ? activeSelfCorrida.destino.split(',')[0] : "Destino"}
                             status={activeSelfCorrida.status}
+                            driverCoords={activeSelfCorrida.currentDriverCoords}
+                            onSimulationUpdate={(coords) => {
+                              handleSimulationUpdate(activeSelfCorrida.id, coords);
+                            }}
                             onArrivedAtOrigin={() => {}}
                             onArrivedAtDestination={() => {}}
                           />
@@ -4296,7 +4374,7 @@ export default function App() {
                   <p className="text-xl font-bold text-emerald-600 mt-1">
                     R$ {totalPlatformComission.toFixed(2)}
                   </p>
-                  <p className="text-[9px] text-slate-400 font-medium mt-0.5">Taxa de intermediação ({config.comissaoPercentual}%)</p>
+                  <p className="text-[9px] text-slate-400 font-medium mt-0.5">Taxa de serviço fixa por corrida</p>
                 </div>
               </div>
 
@@ -5674,7 +5752,7 @@ export default function App() {
 
                   <div>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-zinc-600">Comissão de Viagem da Plataforma (%)</span>
+                      <span className="text-zinc-600">Comissão de Viagem da Plataforma (%) (Legado)</span>
                       <strong className="text-zinc-900">{config.comissaoPercentual}% por trip</strong>
                     </div>
                     <input
@@ -5686,6 +5764,78 @@ export default function App() {
                       onChange={e => setConfig({...config, comissaoPercentual: Number(e.target.value)})}
                       className="w-full accent-emerald-700"
                     />
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-3 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider bg-slate-50 p-2 rounded-lg">Taxas de Serviço Fixas por Corrida</h4>
+                    
+                    <div>
+                      <div className="flex justify-between text-xs mb-1 items-center">
+                        <span className="text-zinc-600 font-medium">Taxa p/ Motoristas Regulares (R$)</span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setConfig(prev => ({ ...prev, taxaServicoFixaRegular: Math.max(0, Number((prev.taxaServicoFixaRegular - 0.50).toFixed(2))) }))}
+                            className="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold px-2 py-1 rounded text-[11px] transition border border-zinc-200 cursor-pointer"
+                          >
+                            -0.50
+                          </button>
+                          <strong className="text-zinc-900 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-105 text-xs min-w-[60px] text-center">
+                            R$ {(config.taxaServicoFixaRegular ?? 1.00).toFixed(2)}
+                          </strong>
+                          <button
+                            type="button"
+                            onClick={() => setConfig(prev => ({ ...prev, taxaServicoFixaRegular: Number((prev.taxaServicoFixaRegular + 0.50).toFixed(2)) }))}
+                            className="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold px-2 py-1 rounded text-[11px] transition border border-zinc-200 cursor-pointer"
+                          >
+                            +0.50
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.00"
+                        max="20.00"
+                        step="0.10"
+                        value={config.taxaServicoFixaRegular ?? 1.00}
+                        onChange={e => setConfig({...config, taxaServicoFixaRegular: Number(e.target.value)})}
+                        className="w-full accent-emerald-700 mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs mb-1 items-center">
+                        <span className="text-zinc-600 font-medium">Taxa p/ Motoristas das Franquias (R$)</span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setConfig(prev => ({ ...prev, taxaServicoFixaFranquia: Math.max(0, Number((prev.taxaServicoFixaFranquia - 0.50).toFixed(2))) }))}
+                            className="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold px-2 py-1 rounded text-[11px] transition border border-zinc-200 cursor-pointer"
+                          >
+                            -0.50
+                          </button>
+                          <strong className="text-zinc-900 bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded border border-indigo-105 text-xs min-w-[60px] text-center">
+                            R$ {(config.taxaServicoFixaFranquia ?? 1.00).toFixed(2)}
+                          </strong>
+                          <button
+                            type="button"
+                            onClick={() => setConfig(prev => ({ ...prev, taxaServicoFixaFranquia: Number((prev.taxaServicoFixaFranquia + 0.50).toFixed(2)) }))}
+                            className="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold px-2 py-1 rounded text-[11px] transition border border-zinc-200 cursor-pointer"
+                          >
+                            +0.50
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.00"
+                        max="20.00"
+                        step="0.10"
+                        value={config.taxaServicoFixaFranquia ?? 1.00}
+                        onChange={e => setConfig({...config, taxaServicoFixaFranquia: Number(e.target.value)})}
+                        className="w-full accent-indigo-700 mt-1"
+                      />
+                    </div>
                   </div>
 
                   <div className="p-3 bg-slate-50 rounded-lg text-[11px] text-zinc-500 border">
@@ -6227,7 +6377,7 @@ export default function App() {
               
               const cityCompletedRides = cityRides.filter(r => r.status === 'CONCLUIDA');
               const grossCityVolume = cityCompletedRides.reduce((sum, r) => sum + r.valor, 0);
-              const cityGrossCommission = grossCityVolume * (config.comissaoPercentual / 100);
+              const cityGrossCommission = cityCompletedRides.reduce((sum, r) => sum + getCorridaTaxaServico(r), 0);
               const totalRepasseDevido = cityCompletedRides.length * currentFran.valorFixoPorCorrida;
               const netFranchiseProfit = cityGrossCommission - totalRepasseDevido;
 
@@ -6255,7 +6405,7 @@ export default function App() {
                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Comissão Bruta ({config.comissaoPercentual}%)</p>
+                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Comissão Bruta (Taxa Fixa)</p>
                           <p className="text-xl font-bold text-slate-900 mt-1">R$ {cityGrossCommission.toFixed(2)}</p>
                           <span className="text-[9px] text-slate-400 block mt-1">Intermediação de caronas</span>
                         </div>
@@ -6667,23 +6817,43 @@ export default function App() {
       )}
 
       {/* BOTÃO GLOBAL DE SUPORTE WHATSAPP - Visível em todos os painéis e logins */}
-      <a
-        href="https://wa.me/5562996346075"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Falar com o Suporte Carona"
-        className="fixed bottom-6 right-6 z-50 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full p-4 shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all duration-300 group border-2 border-emerald-400 font-bold"
-        id="global-whatsapp-support-btn"
-      >
-        <span className="relative flex h-3 w-3">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400"></span>
-        </span>
-        <MessageCircle size={18} />
-        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs tracking-wide uppercase font-bold whitespace-nowrap">
-          Suporte
-        </span>
-      </a>
+      {(() => {
+        let whatsappLink = "https://wa.me/5562996346075";
+        let whatsappText = "Suporte";
+        let whatsappTitle = "Falar com o Suporte Carona";
+
+        if (currentActiveCorrida && currentActiveCorrida.motoristaId) {
+          const activeMotoristaObj = motoristas.find(m => m.id === currentActiveCorrida.motoristaId);
+          const activeMotoristaUser = activeMotoristaObj ? users.find(u => u.id === activeMotoristaObj.userId) : null;
+          if (activeMotoristaUser && activeMotoristaUser.telefone) {
+            const digitsOnly = activeMotoristaUser.telefone.replace(/\D/g, '');
+            const formattedNum = (digitsOnly.startsWith('55') && digitsOnly.length >= 12) ? digitsOnly : `55${digitsOnly}`;
+            whatsappLink = `https://wa.me/${formattedNum}`;
+            whatsappText = "falar com seu motorista";
+            whatsappTitle = `Falar com seu motorista (${activeMotoristaUser.nome})`;
+          }
+        }
+
+        return (
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={whatsappTitle}
+            className="fixed bottom-6 right-6 z-50 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full p-4 shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all duration-300 group border-2 border-emerald-400 font-bold"
+            id="global-whatsapp-support-btn"
+          >
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400"></span>
+            </span>
+            <MessageCircle size={18} />
+            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs tracking-wide uppercase font-bold whitespace-nowrap">
+              {whatsappText}
+            </span>
+          </a>
+        );
+      })()}
 
     </div>
   );

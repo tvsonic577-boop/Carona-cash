@@ -98,6 +98,8 @@ export interface PlataformaConfig {
   precoKm: number;
   taxaAtivacaoMotorista: number;
   comissaoPercentual: number;
+  taxaServicoFixaRegular: number;
+  taxaServicoFixaFranquia: number;
 }
 
 export interface Franqueado {

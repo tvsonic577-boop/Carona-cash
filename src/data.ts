@@ -5,6 +5,8 @@ export const INITIAL_CONFIG: PlataformaConfig = {
   precoKm: 2.5,
   taxaAtivacaoMotorista: 49.90,
   comissaoPercentual: 15.0,
+  taxaServicoFixaRegular: 1.00,
+  taxaServicoFixaFranquia: 1.00,
 };
 
 export const INITIAL_CIDADES: CidadeAtendida[] = [
