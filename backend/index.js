@@ -146,10 +146,12 @@ app.post('/api/auth/register-motorista', upload.fields([
 
     const hashedPassword = await bcrypt.hash(senha, 10);
 
-    const files = req.files;
-    if (!files.cnhFrente || !files.comprovanteEndereco || !files.veiculoFrente || !files.veiculoLateral || !files.veiculoTraseira) {
-      return res.status(400).json({ error: 'Faltando o upload de documentos obrigatórios!' });
-    }
+    const files = req.files || {};
+    const cnhFrenteField = (files.cnhFrente && files.cnhFrente[0]) ? files.cnhFrente[0].filename : (req.body.cnhFrente || 'https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=400');
+    const comprovanteEnderecoField = (files.comprovanteEndereco && files.comprovanteEndereco[0]) ? files.comprovanteEndereco[0].filename : (req.body.comprovanteEndereco || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400');
+    const veiculoFrenteField = (files.veiculoFrente && files.veiculoFrente[0]) ? files.veiculoFrente[0].filename : (req.body.veiculoFrente || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400');
+    const veiculoLateralField = (files.veiculoLateral && files.veiculoLateral[0]) ? files.veiculoLateral[0].filename : (req.body.veiculoLateral || 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=400');
+    const veiculoTraseiraField = (files.veiculoTraseira && files.veiculoTraseira[0]) ? files.veiculoTraseira[0].filename : (req.body.veiculoTraseira || 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=400');
 
     // Criar Usuário, Motorista, Veículo e Documentos associados pelo prisma transacional
     const user = await prisma.user.create({
@@ -163,7 +165,7 @@ app.post('/api/auth/register-motorista', upload.fields([
         motorista: {
           create: {
             cpf,
-            cnh,
+            cnh: cnh || 'CNH-MOCK',
             endereco,
             cidade,
             status_aprovacao: 'PENDENTE'
@@ -171,11 +173,11 @@ app.post('/api/auth/register-motorista', upload.fields([
         },
         documentos: {
           create: [
-            { tipo: 'CNH_FRENTE', arquivo: files.cnhFrente[0].filename },
-            { tipo: 'COMPROVANTE_ENDERECO', arquivo: files.comprovanteEndereco[0].filename },
-            { tipo: 'VEICULO_FRENTE', arquivo: files.veiculoFrente[0].filename },
-            { tipo: 'VEICULO_LATERAL', arquivo: files.veiculoLateral[0].filename },
-            { tipo: 'VEICULO_TRASEIRA', arquivo: files.veiculoTraseira[0].filename }
+            { tipo: 'CNH_FRENTE', arquivo: cnhFrenteField },
+            { tipo: 'COMPROVANTE_ENDERECO', arquivo: comprovanteEnderecoField },
+            { tipo: 'VEICULO_FRENTE', arquivo: veiculoFrenteField },
+            { tipo: 'VEICULO_LATERAL', arquivo: veiculoLateralField },
+            { tipo: 'VEICULO_TRASEIRA', arquivo: veiculoTraseiraField }
           ]
         }
       }

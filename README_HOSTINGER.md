@@ -96,7 +96,8 @@ Se você contratou o serviço de hospedagem dedicada em VPS Node.js na Hostinger
    PORT=3001
    DATABASE_URL="postgresql://u547209123_caronash_user:sua_senha_secreta_criada@localhost:5432/u547209123_caronacash?schema=public"
    JWT_SECRET="sua_chave_personalizada_carona_cash_jwt"
-   APP_URL="https://seu-dominio-caronacash.com"
+   APP_URL="https://coranacash.com.br"
+   VITE_API_URL="https://coranacash.com.br"
    ```
 
 ### PASSO 4: Iniciar Serviços com PM2 (Process Manager)
@@ -135,7 +136,7 @@ Para responder ao tráfego HTTP seguro nas portas padrão `80` ou `443`, configu
    ```nginx
    server {
        listen 80;
-       server_name seu-dominio-caronacash.com www.seu-dominio-caronacash.com;
+       server_name coranacash.com.br www.coranacash.com.br;
 
        location / {
            proxy_pass http://localhost:3000; # Porta onde o Frontend roda
@@ -175,7 +176,7 @@ Para responder ao tráfego HTTP seguro nas portas padrão `80` ou `443`, configu
 Ative a segurança criptografada para proteger transações de cadastros dos cartões e comprovantes:
 ```bash
 apt install certbot python3-certbot-nginx -y
-certbot --nginx -d seu-dominio-caronacash.com -d www.seu-dominio-caronacash.com
+certbot --nginx -d coranacash.com.br -d www.coranacash.com.br
 ```
 Selecione a opção de redirecionar automaticamente todo o tráfego HTTP para HTTPS!
 

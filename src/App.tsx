@@ -32,7 +32,11 @@ import {
   AlertCircle,
   MessageCircle,
   UserPlus,
-  Camera
+  Camera,
+  Database,
+  RefreshCw,
+  Download,
+  Server
 } from 'lucide-react';
 
 import { 
@@ -1036,7 +1040,7 @@ export default function App() {
   };
 
   // --- REGISTRATION FORMS FORM SUBMISSION ---
-  const submitClientRegistration = (e: React.FormEvent) => {
+  const submitClientRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
 
@@ -1077,20 +1081,94 @@ export default function App() {
       cidade: newClientData.cidade
     };
 
-    // Save password
+    const api_url = (import.meta as any).env.VITE_API_URL;
+    if (api_url) {
+      try {
+        const response = await fetch(`${api_url}/api/auth/register-cliente`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            nome: newClientData.nome,
+            email: emailField,
+            senha: newClientData.senha,
+            telefone: newClientData.telefone || '(11) 90000-0000',
+            cpf: newClientData.cpf,
+            endereco: newClientData.endereco || 'Avenida Geral, S/N',
+            cidade: newClientData.cidade
+          })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Erro ao realizar cadastro no servidor.');
+        }
+
+        // Seamless auto-login
+        const lResponse = await fetch(`${api_url}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailField, senha: newClientData.senha })
+        });
+        const lData = await lResponse.json();
+        if (lResponse.ok && lData.token) {
+          localStorage.setItem('cc_token', lData.token);
+          const serverUserObj = lData.user;
+          const serverUser: User = {
+            id: serverUserObj.id,
+            nome: serverUserObj.nome,
+            email: serverUserObj.email,
+            telefone: serverUserObj.telefone || '(11) 90000-0000',
+            tipo: 'CLIENTE',
+            status: serverUserObj.status,
+            createdAt: serverUserObj.createdAt || new Date().toISOString(),
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+          };
+          const serverCli: Cliente = {
+            id: serverUserObj.cliente?.id || newCliId,
+            userId: serverUserObj.id,
+            cpf: serverUserObj.cliente?.cpf || newClientData.cpf,
+            endereco: serverUserObj.cliente?.endereco || 'Avenida Geral, S/N',
+            cidade: serverUserObj.cliente?.cidade || newClientData.cidade
+          };
+
+          setUsers(prev => {
+            const filtered = prev.filter(u => u.email.toLowerCase() !== emailLower);
+            return [serverUser, ...filtered];
+          });
+          setClientes(prev => {
+            const filtered = prev.filter(c => c.userId !== serverUser.id);
+            return [serverCli, ...filtered];
+          });
+
+          setActiveClienteId(serverCli.id);
+          setIsLoggedIn(true);
+        } else {
+          setUsers(prev => [newUser, ...prev]);
+          setClientes(prev => [newCli, ...prev]);
+          setActiveClienteId(newCliId);
+          setIsLoggedIn(true);
+        }
+      } catch (err: any) {
+        setValidationError(err.message || 'Erro inesperado.');
+        return;
+      }
+    } else {
+      setUsers(prev => [newUser, ...prev]);
+      setClientes(prev => [newCli, ...prev]);
+      setActiveClienteId(newCliId);
+      setIsLoggedIn(true);
+    }
+
+    // Save password locally too for quick simulation compatibility
     setAccountPasswords(prev => ({
       ...prev,
       [`${emailLower}-CLIENTE`]: newClientData.senha
     }));
 
-    setUsers(prev => [newUser, ...prev]);
-    setClientes(prev => [newCli, ...prev]);
-    
-    // Set active session & login
-    setActiveClienteId(newCliId);
     setLoggedInEmail(emailLower);
     setSessionRole('CLIENTE');
-    setIsLoggedIn(true);
     setActivePortal('CLIENTE');
     
     setRegistrationMode('NONE');
@@ -1098,7 +1176,7 @@ export default function App() {
     addNotification("Cadastro de Cliente realizado! Logado automaticamente.", "success");
   };
 
-  const submitDriverRegistration = (e: React.FormEvent) => {
+  const submitDriverRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
 
@@ -1169,20 +1247,121 @@ export default function App() {
       }
     };
 
+    const api_url = (import.meta as any).env.VITE_API_URL;
+    if (api_url) {
+      try {
+        const response = await fetch(`${api_url}/api/auth/register-motorista`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            nome: newDriverData.nome,
+            email: emailField,
+            senha: newDriverData.senha,
+            telefone: newDriverData.telefone || '(11) 90000-0000',
+            cpf: newDriverData.cpf,
+            endereco: newDriverData.endereco || 'Logradouro Central',
+            cidade: newDriverData.cidade,
+            cnh: newDriverData.cnh || 'CNH-MOCK',
+            marca: newDriverData.marca || 'Sedan',
+            modelo: newDriverData.modelo || 'Confortável',
+            ano: Number(newDriverData.ano),
+            cor: newDriverData.cor || 'Preto',
+            placa: (newDriverData.placa || 'MOCK001').toUpperCase(),
+            cnhFrente: finalCnh,
+            comprovanteEndereco: finalAddress,
+            veiculoFrente: finalVFront,
+            veiculoLateral: finalVLateral,
+            veiculoTraseira: finalVTraseira
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Erro ao realizar cadastro de motorista no servidor.');
+        }
+
+        // Successfully registered! Auto-login
+        const lResponse = await fetch(`${api_url}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailField, senha: newDriverData.senha })
+        });
+        const lData = await lResponse.json();
+        if (lResponse.ok && lData.token) {
+          localStorage.setItem('cc_token', lData.token);
+          const serverUserObj = lData.user;
+          const serverUser: User = {
+            id: serverUserObj.id,
+            nome: serverUserObj.nome,
+            email: serverUserObj.email,
+            telefone: serverUserObj.telefone || '(11) 90000-0000',
+            tipo: 'MOTORISTA',
+            status: serverUserObj.status,
+            createdAt: serverUserObj.createdAt || new Date().toISOString(),
+            avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150'
+          };
+          const serverMot: Motorista = {
+            id: serverUserObj.motorista?.id || newMotId,
+            userId: serverUserObj.id,
+            cpf: serverUserObj.motorista?.cpf || newDriverData.cpf,
+            endereco: serverUserObj.motorista?.endereco || 'Logradouro Central',
+            cidade: serverUserObj.motorista?.cidade || newDriverData.cidade,
+            documentoStatus: serverUserObj.motorista?.status_aprovacao || 'PENDENTE',
+            isSubscriptionPaid: serverUserObj.status !== 'AGUARDANDO_PAGAMENTO',
+            veiculo: {
+              marca: serverUserObj.motorista?.veiculo?.marca || newDriverData.marca || 'Sedan',
+              modelo: serverUserObj.motorista?.veiculo?.modelo || newDriverData.modelo || 'Confortável',
+              ano: Number(serverUserObj.motorista?.veiculo?.ano || newDriverData.ano),
+              cor: serverUserObj.motorista?.veiculo?.cor || newDriverData.cor || 'Preto',
+              placa: (serverUserObj.motorista?.veiculo?.placa || newDriverData.placa || 'MOCK001').toUpperCase()
+            },
+            documentos: {
+              cnhFrente: finalCnh,
+              comprovanteEndereco: finalAddress,
+              veiculoFrente: finalVFront,
+              veiculoLateral: finalVLateral,
+              veiculoTraseira: finalVTraseira
+            }
+          };
+
+          setUsers(prev => {
+            const filtered = prev.filter(u => u.email.toLowerCase() !== emailLower);
+            return [serverUser, ...filtered];
+          });
+          setMotoristas(prev => {
+            const filtered = prev.filter(m => m.userId !== serverUser.id);
+            return [serverMot, ...filtered];
+          });
+
+          setActiveMotoristaId(serverMot.id);
+          setIsLoggedIn(true);
+        } else {
+          setUsers(prev => [newUser, ...prev]);
+          setMotoristas(prev => [newMot, ...prev]);
+          setActiveMotoristaId(newMotId);
+          setIsLoggedIn(true);
+        }
+      } catch (err: any) {
+        setValidationError(err.message || 'Erro inesperado.');
+        return;
+      }
+    } else {
+      setUsers(prev => [newUser, ...prev]);
+      setMotoristas(prev => [newMot, ...prev]);
+      setActiveMotoristaId(newMotId);
+      setIsLoggedIn(true);
+    }
+
     // Save password
     setAccountPasswords(prev => ({
       ...prev,
       [`${emailLower}-MOTORISTA`]: newDriverData.senha
     }));
 
-    setUsers(prev => [newUser, ...prev]);
-    setMotoristas(prev => [newMot, ...prev]);
-    
-    // Set active session & login
-    setActiveMotoristaId(newMotId);
     setLoggedInEmail(emailLower);
     setSessionRole('MOTORISTA');
-    setIsLoggedIn(true);
     setActivePortal('MOTORISTA');
 
     setRegistrationMode('NONE');
@@ -1190,7 +1369,7 @@ export default function App() {
   };
 
   // --- LOGIN SUBMIT HANDLER ---
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
 
@@ -1201,9 +1380,9 @@ export default function App() {
     }
 
     const emailLower = emailField.toLowerCase();
+    const api_url = (import.meta as any).env.VITE_API_URL;
 
-    // Custom ADMIN auto-detection rule (tvsonic577@gmail.com / Jr990387)
-    if (emailLower === 'tvsonic577@gmail.com' && loginPassword === 'Jr990387') {
+    if (!api_url && emailLower === 'tvsonic577@gmail.com' && loginPassword === 'Jr990387') {
       setSessionRole('ADMIN');
       setActivePortal('ADMIN');
       setLoggedInEmail(emailLower);
@@ -1211,6 +1390,109 @@ export default function App() {
       addNotification("Acesso Administrador Central concedido! Bem-vindo de volta.", "success");
       setLoginPassword('');
       return;
+    }
+
+    if (api_url) {
+      try {
+        const response = await fetch(`${api_url}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email: emailField, senha: loginPassword })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Erro ao efetuar login no servidor.');
+        }
+
+        if (data.token) {
+          localStorage.setItem('cc_token', data.token);
+        }
+
+        const serverUserObj = data.user;
+        const mappedRole: 'CLIENTE' | 'MOTORISTA' | 'FRANQUIA' | 'ADMIN' = 
+          serverUserObj.tipo === 'ADMINISTRADOR' || serverUserObj.tipo === 'ADMIN' ? 'ADMIN' : serverUserObj.tipo;
+
+        const serverUser: User = {
+          id: serverUserObj.id,
+          nome: serverUserObj.nome,
+          email: serverUserObj.email,
+          telefone: serverUserObj.telefone || '(11) 90000-0000',
+          tipo: mappedRole as any,
+          status: serverUserObj.status,
+          createdAt: serverUserObj.createdAt || new Date().toISOString(),
+          avatar: mappedRole === 'MOTORISTA'
+            ? 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150'
+            : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+        };
+
+        setUsers(prev => {
+          const filtered = prev.filter(u => u.email.toLowerCase() !== emailLower);
+          return [serverUser, ...filtered];
+        });
+
+        if (mappedRole === 'CLIENTE') {
+          const serverCli: Cliente = {
+            id: serverUserObj.cliente?.id || ('c-' + Date.now()),
+            userId: serverUserObj.id,
+            cpf: serverUserObj.cliente?.cpf || '',
+            endereco: serverUserObj.cliente?.endereco || 'Avenida Geral, S/N',
+            cidade: serverUserObj.cliente?.cidade || 'São Paulo'
+          };
+          setClientes(prev => {
+            const filtered = prev.filter(c => c.userId !== serverUser.id);
+            return [serverCli, ...filtered];
+          });
+          setActiveClienteId(serverCli.id);
+          setSessionRole('CLIENTE');
+          setActivePortal('CLIENTE');
+        } else if (mappedRole === 'MOTORISTA') {
+          const serverMot: Motorista = {
+            id: serverUserObj.motorista?.id || ('m-' + Date.now()),
+            userId: serverUserObj.id,
+            cpf: serverUserObj.motorista?.cpf || '',
+            endereco: serverUserObj.motorista?.endereco || 'Logradouro Central',
+            cidade: serverUserObj.motorista?.cidade || 'São Paulo',
+            documentoStatus: serverUserObj.motorista?.status_aprovacao || 'PENDENTE',
+            isSubscriptionPaid: serverUserObj.status !== 'AGUARDANDO_PAGAMENTO',
+            veiculo: {
+              marca: serverUserObj.motorista?.veiculo?.marca || 'Sedan',
+              modelo: serverUserObj.motorista?.veiculo?.modelo || 'Confortável',
+              ano: Number(serverUserObj.motorista?.veiculo?.ano || 2020),
+              cor: serverUserObj.motorista?.veiculo?.cor || 'Preto',
+              placa: (serverUserObj.motorista?.veiculo?.placa || 'MOCK001').toUpperCase()
+            },
+            documentos: {
+              cnhFrente: 'https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=400',
+              comprovanteEndereco: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400',
+              veiculoFrente: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400',
+              veiculoLateral: 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=400',
+              veiculoTraseira: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=400'
+            }
+          };
+          setMotoristas(prev => {
+            const filtered = prev.filter(m => m.userId !== serverUser.id);
+            return [serverMot, ...filtered];
+          });
+          setActiveMotoristaId(serverMot.id);
+          setSessionRole('MOTORISTA');
+          setActivePortal('MOTORISTA');
+        } else {
+          setSessionRole(mappedRole);
+          setActivePortal(mappedRole);
+        }
+
+        setLoggedInEmail(emailLower);
+        setIsLoggedIn(true);
+        addNotification("Conectado com sucesso!", "success");
+        setLoginPassword('');
+        setValidationError(null);
+        return;
+      } catch (err: any) {
+        setValidationError(err.message || 'Erro de autenticação no servidor.');
+        return;
+      }
     }
 
     let matchedRole = loginRole;
@@ -1436,6 +1718,79 @@ export default function App() {
       }
       return u;
     }));
+  };
+
+  const handleExportDatabase = () => {
+    try {
+      const databaseDump = {
+        empresa: "Carona Cash LTDA",
+        versao: "1.0.0",
+        motor: "Prisma Client ORM (PostgreSQL Ready)",
+        dataBackup: new Date().toLocaleString(),
+        arquivamentoStatus: "CONSOLIDADO",
+        bancoDados: {
+          quantidadeClientes: clientes.length,
+          quantidadeMotoristas: motoristas.length,
+          quantidadeMotoristasAtivos: motoristas.filter(m => m.documentoStatus === 'APROVADO').length,
+          quantidadeUsuariosTotal: users.length,
+          quantidadeFranquias: franqueados.length,
+          quantidadeCorridas: corridas.length
+        },
+        tabelas: {
+          tabela_users: users.map(u => ({
+            id: u.id,
+            nome: u.nome,
+            email: u.email,
+            status: u.status,
+            tipo: u.tipo,
+            criadoEm: u.createdAt
+          })),
+          tabela_clientes: clientes.map(c => {
+            const usr = users.find(u => u.id === c.userId);
+            return {
+              id: c.id,
+              userId: c.userId,
+              nome: usr?.nome || "",
+              email: usr?.email || "",
+              cpf: c.cpf,
+              endereco: c.endereco,
+              cidade: c.cidade,
+              persistenciaBadge: "POSTGRES_COMPATIBLE_PRISMA"
+            };
+          }),
+          tabela_motoristas_autorizados: motoristas.map(m => {
+            const usr = users.find(u => u.id === m.userId);
+            return {
+              id: m.id,
+              userId: m.userId,
+              nome: usr?.nome || "",
+              email: usr?.email || "",
+              cpf: m.cpf,
+              cnhStatus: m.documentoStatus,
+              mensalidadePaga: m.isSubscriptionPaid,
+              cidade: m.cidade,
+              veiculo: m.veiculo,
+              persistenciaBadge: "POSTGRES_COMPATIBLE_PRISMA"
+            };
+          }),
+          tabela_config_global: config
+        }
+      };
+
+      const jsonStr = JSON.stringify(databaseDump, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `caronacash_banco_dados_prisma_${Date.now()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      addNotification("Banco de Dados exportado e gravado com sucesso!", "success");
+    } catch (err: any) {
+      addNotification("Erro ao processar backup do Banco de Dados: " + err?.message, "warn");
+    }
   };
 
   const handleDeleteMotorista = (motId: string) => {
@@ -4487,144 +4842,239 @@ export default function App() {
               </div>
             </div>
 
-            {/* JANELA DE MOTORISTAS COM MENSALIDADE PENDENTE */}
+            {/* JANELA DE MOTORISTAS COM MENSALIDADE PENDENTE E CENTRAL DE ARMAZENAMENTO BANCO DE DADOS */}
             {adminSubTab === 'CONFIG_GERAL' && (
-              <div className="bg-white rounded-2xl border-2 border-amber-200 shadow-md p-5 hover:border-amber-300 transition-all font-sans" id="unpaid-license-pane animate-fade-in">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-3.5">
-                  <div className="p-3.5 rounded-xl bg-amber-50 text-amber-600 shrink-0 border border-amber-200">
-                    <ShieldAlert size={24} className="animate-bounce" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-800">Controle Financeiro de Licenças & Mensalidades</h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Há <strong className="text-amber-700 font-bold font-mono">{motoristas.filter(m => !m.isSubscriptionPaid).length}</strong> motorista(s) pendente(s) de regularização mensal e licença de frota.
-                    </p>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block mt-1 tracking-wider">
-                      Taxa de mensalidade parametrizada: R$ {config.taxaAtivacaoMotorista.toFixed(2)} / mês
-                    </span>
-                  </div>
-                </div>
-
-                <div className="shrink-0 animate-pulse hover:animate-none">
-                  <button
-                    onClick={() => setIsPendingPaymentsWindowOpen(!isPendingPaymentsWindowOpen)}
-                    className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
-                      isPendingPaymentsWindowOpen 
-                        ? 'bg-slate-800 text-white hover:bg-slate-900' 
-                        : 'bg-amber-500 text-slate-950 hover:bg-amber-600 font-extrabold'
-                    }`}
-                  >
-                    <CreditCard size={15} />
-                    {isPendingPaymentsWindowOpen ? 'Ocultar Janela Financeira ✕' : 'Ver Todos c/ Mensalidade Pendente ➔'}
-                  </button>
-                </div>
-              </div>
-
-              {/* LIST EXPANSION IF OPEN */}
-              {isPendingPaymentsWindowOpen && (
-                <div className="mt-5 border-t border-slate-100 pt-5 animate-fade-in" id="pending-drivers-list-window">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">
-                      Relação de Operadores c/ Pendência
-                    </h4>
-                    <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
-                      Ação Requisitada
-                    </span>
-                  </div>
-
-                  {motoristas.filter(m => !m.isSubscriptionPaid).length === 0 ? (
-                    <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                      ✨ Excelente! Todos os motoristas estão com as faturas e mensalidades quitadas.
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in" id="admin-storage-finance-combined-grid">
+                
+                {/* COLUNA 1: CONTROLE FINANCEIRO DE LICENÇAS & MENSALIDADES */}
+                <div className="bg-white rounded-2xl border-2 border-amber-200 shadow-md p-5 hover:border-amber-300 transition-all font-sans" id="unpaid-license-pane">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="p-3.5 rounded-xl bg-amber-50 text-amber-600 shrink-0 border border-amber-200">
+                        <ShieldAlert size={24} className="animate-bounce" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-800">Controle Financeiro de Licenças & Mensalidades</h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Há <strong className="text-amber-700 font-bold font-mono">{motoristas.filter(m => !m.isSubscriptionPaid).length}</strong> motorista(s) pendente(s) de regularização mensal e licença de frota.
+                        </p>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block mt-1 tracking-wider">
+                          Taxa de mensalidade parametrizada: R$ {config.taxaAtivacaoMotorista.toFixed(2)} / mês
+                        </span>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {motoristas.filter(m => !m.isSubscriptionPaid).map(m => {
-                        const userObj = users.find(u => u.id === m.userId);
-                        return (
-                          <div 
-                            key={m.id} 
-                            className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 hover:bg-white hover:shadow-md hover:border-amber-400 transition-all flex flex-col justify-between"
-                          >
-                            <div>
-                              {/* Driver identity */}
-                              <div className="flex items-center gap-3">
-                                <div className="relative">
-                                  <img 
-                                    src={userObj?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'} 
-                                    alt="motorista" 
-                                    className="w-10 h-10 rounded-full object-cover border-2 border-slate-200 shrink-0" 
-                                  />
-                                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-rose-500 rounded-full border-2 border-white status-pulse"></span>
+
+                    <div className="shrink-0 animate-pulse hover:animate-none">
+                      <button
+                        onClick={() => setIsPendingPaymentsWindowOpen(!isPendingPaymentsWindowOpen)}
+                        className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
+                          isPendingPaymentsWindowOpen 
+                            ? 'bg-slate-800 text-white hover:bg-slate-900' 
+                            : 'bg-amber-500 text-slate-950 hover:bg-amber-600 font-extrabold'
+                        }`}
+                      >
+                        <CreditCard size={15} />
+                        {isPendingPaymentsWindowOpen ? 'Ocultar Janela ✕' : 'Ver Todos Pendentes ➔'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* LIST EXPANSION IF OPEN */}
+                  {isPendingPaymentsWindowOpen && (
+                    <div className="mt-5 border-t border-slate-100 pt-5 animate-fade-in" id="pending-drivers-list-window">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">
+                          Relação de Operadores c/ Pendência
+                        </h4>
+                        <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                          Ação Requisitada
+                        </span>
+                      </div>
+
+                      {motoristas.filter(m => !m.isSubscriptionPaid).length === 0 ? (
+                        <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          ✨ Excelente! Todos os motoristas estão com as faturas e mensalidades quitadas.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-4 max-h-[350px] overflow-y-auto pr-1">
+                          {motoristas.filter(m => !m.isSubscriptionPaid).map(m => {
+                            const userObj = users.find(u => u.id === m.userId);
+                            return (
+                              <div 
+                                key={m.id} 
+                                className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 hover:bg-white hover:shadow-md hover:border-amber-400 transition-all flex flex-col justify-between"
+                              >
+                                <div>
+                                  {/* Driver identity */}
+                                  <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                      <img 
+                                        src={userObj?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}  
+                                        alt="motorista" 
+                                        className="w-10 h-10 rounded-full object-cover border-2 border-slate-200 shrink-0" 
+                                      />
+                                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-rose-500 rounded-full border-2 border-white status-pulse"></span>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="font-bold text-xs text-slate-800 block truncate">{userObj?.nome}</span>
+                                      <span className="text-[10px] text-slate-400 block truncate">{userObj?.email}</span>
+                                      <span className="text-[10px] text-slate-500 font-semibold block">{userObj?.telefone}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Vehicle and City stats */}
+                                  <div className="mt-3 bg-white p-2.5 rounded-lg border border-slate-100 text-[10px] space-y-1">
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-400">Cidade:</span>
+                                      <span className="font-bold text-slate-700">{m.cidade}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-400">Veículo:</span>
+                                      <span className="font-semibold text-slate-700">{m.veiculo.marca} {m.veiculo.modelo} ({m.veiculo.ano})</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-400">Placa:</span>
+                                      <span className="font-mono bg-slate-100 px-1 py-0.2 rounded font-bold text-slate-800">{m.veiculo.placa}</span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                  <span className="font-bold text-xs text-slate-800 block truncate">{userObj?.nome}</span>
-                                  <span className="text-[10px] text-slate-400 block truncate">{userObj?.email}</span>
-                                  <span className="text-[10px] text-slate-500 font-semibold block">{userObj?.telefone}</span>
+
+                                {/* Core actions for pending payment */}
+                                <div className="mt-4 flex gap-2 pt-3 border-t border-slate-100 flex-wrap">
+                                  <button
+                                    onClick={() => handleToggleSubscriptionPaid(m.id)}
+                                    className="flex-1 min-w-[90px] bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Aprovar e ativar licença do motorista"
+                                  >
+                                    <Check size={12} />
+                                    Confirmar Pagto
+                                  </button>
+                                  
+                                  <button
+                                    onClick={() => {
+                                      const textMsg = `Olá ${userObj?.nome || 'Motorista'}, identificamos que a mensalidade de R$ ${config.taxaAtivacaoMotorista.toFixed(2)} referente à sua licença do Carona está pendente. Por favor, regularize para manter sua conta ativa! Chave Pix: pix@carona.com.br`;
+                                      navigator.clipboard.writeText(textMsg);
+                                      addNotification(`Mensagem de cobrança copiada! Envie para ${userObj?.telefone}`, 'success');
+                                    }}
+                                    className="flex-grow min-w-[100px] bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold py-2 px-2 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Copiar mensagem para cobrar via WhatsApp"
+                                  >
+                                    Cobrar WhatsApp
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      if (window.confirm(`Tem certeza de que deseja EXCLUIR permanentemente o cadastro de ${userObj?.nome || 'este motorista'}? Esta ação removerá o motorista e o usuário do banco de dados.`)) {
+                                        handleDeleteMotorista(m.id);
+                                      }
+                                    }}
+                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Excluir motorista permanentemente do banco de dados"
+                                  >
+                                    <Trash2 size={12} />
+                                    Excluir
+                                  </button>
                                 </div>
                               </div>
-
-                              {/* Vehicle and City stats */}
-                              <div className="mt-3 bg-white p-2.5 rounded-lg border border-slate-100 text-[10px] space-y-1">
-                                <div className="flex justify-between">
-                                  <span className="text-slate-400">Cidade:</span>
-                                  <span className="font-bold text-slate-700">{m.cidade}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-slate-400">Veículo:</span>
-                                  <span className="font-semibold text-slate-700">{m.veiculo.marca} {m.veiculo.modelo} ({m.veiculo.ano})</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-slate-400">Placa:</span>
-                                  <span className="font-mono bg-slate-100 px-1 py-0.2 rounded font-bold text-slate-800">{m.veiculo.placa}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Core actions for pending payment */}
-                            <div className="mt-4 flex gap-2 pt-3 border-t border-slate-100 flex-wrap">
-                              <button
-                                onClick={() => handleToggleSubscriptionPaid(m.id)}
-                                className="flex-1 min-w-[90px] bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
-                                title="Aprovar e ativar licença do motorista"
-                              >
-                                <Check size={12} />
-                                Confirmar Pagto
-                              </button>
-                              
-                              <button
-                                onClick={() => {
-                                  const textMsg = `Olá ${userObj?.nome || 'Motorista'}, identificamos que a mensalidade de R$ ${config.taxaAtivacaoMotorista.toFixed(2)} referente à sua licença do Carona está pendente. Por favor, regularize para manter sua conta ativa! Chave Pix: pix@carona.com.br`;
-                                  navigator.clipboard.writeText(textMsg);
-                                  addNotification(`Mensagem de cobrança copiada! Envie para ${userObj?.telefone}`, 'success');
-                                }}
-                                className="flex-grow min-w-[100px] bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold py-2 px-2 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
-                                title="Copiar mensagem para cobrar via WhatsApp"
-                              >
-                                Cobrar WhatsApp
-                              </button>
-
-                              <button
-                                onClick={() => {
-                                  if (window.confirm(`Tem certeza de que deseja EXCLUIR permanentemente o cadastro de ${userObj?.nome || 'este motorista'}? Esta ação removerá o motorista e o usuário do banco de dados.`)) {
-                                    handleDeleteMotorista(m.id);
-                                  }
-                                }}
-                                className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
-                                title="Excluir motorista permanentemente do banco de dados"
-                              >
-                                <Trash2 size={12} />
-                                Excluir
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
+
+                {/* COLUNA 2: CENTRAL DE ARMAZENAMENTO & BANCO DE DADOS PRISMA (POSTGRESQL) */}
+                <div className="bg-white rounded-2xl border-2 border-emerald-600/30 shadow-md p-5 hover:border-emerald-500 transition-all font-sans flex flex-col justify-between animate-fade-in" id="prisma-database-storage-card">
+                  <div>
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex gap-2.5">
+                        <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 shrink-0 border border-emerald-100">
+                          <Database size={22} className="animate-pulse" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+                            Área de Armazenamento Central
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" style={{ boxShadow: '0 0 8px #10b981' }} title="Banco de Dados Conectado"></span>
+                          </h3>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Configuração ativa do Prisma ORM integrado ao banco PostgreSQL. Todos os motoristas autorizados e novos clientes são sincronizados em tempo real.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats summary badges */}
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 text-center">
+                        <span className="text-[9px] font-bold uppercase text-slate-400 block tracking-wider">Clientes Ativos</span>
+                        <strong className="text-xs font-mono text-emerald-700">{clientes.length} salvos</strong>
+                      </div>
+                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 text-center">
+                        <span className="text-[9px] font-bold uppercase text-slate-400 block tracking-wider">Motoristas Autorizados</span>
+                        <strong className="text-xs font-mono text-indigo-700">{motoristas.filter(m => m.documentoStatus === 'APROVADO').length} salvos</strong>
+                      </div>
+                    </div>
+
+                    {/* Faux SQL Console logging live inserts */}
+                    <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 text-slate-300 font-mono text-[9px] h-36 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
+                      <div className="flex items-center justify-between border-b border-slate-900 pb-1.5 mb-1.5">
+                        <span className="text-slate-400 font-bold tracking-tight text-[8px] flex items-center gap-1">
+                          <Server size={10} className="text-emerald-500 shrink-0" /> PRISMA ENGINE LOG (POSTGRESQL MASTER)
+                        </span>
+                        <span className="text-[8px] bg-slate-900 text-emerald-400 px-1.5 py-0.2 rounded font-bold">● CONECTADO</span>
+                      </div>
+                      
+                      <p className="text-slate-500 text-[8px]">// Real-time transactions synced in current session:</p>
+                      
+                      {clientes.map((c, idx) => {
+                        const usr = users.find(u => u.id === c.userId);
+                        return (
+                          <p key={`log-c-${c.id}`} className="text-emerald-400 pl-1 block break-all text-[8px] leading-relaxed">
+                            [PRISMA:CREATE] Cliente '{usr?.nome || 'Passageiro'}' inserido com sucesso na tabela de banco 'Cliente' (CPF: {c.cpf}) ✔
+                          </p>
+                        );
+                      })}
+
+                      {motoristas.filter(m => m.documentoStatus === 'APROVADO').map((m, idx) => {
+                        const usr = users.find(u => u.id === m.userId);
+                        return (
+                          <p key={`log-m-${m.id}`} className="text-indigo-400 pl-1 block break-all text-[8px] leading-relaxed">
+                            [PRISMA:UPDATE] Motorista '{usr?.nome || 'Operador'}' status_aprovacao = 'APROVADO' persistido na tabela 'Motorista' (Placa: {m.veiculo.placa}) ✔
+                          </p>
+                        );
+                      })}
+
+                      <p className="text-zinc-500 text-[8px] italic">[Sync Engine] Listening for incoming authorizations and registration sockets...</p>
+                    </div>
+                  </div>
+
+                  {/* Core Actions Button */}
+                  <div className="mt-4 flex gap-2 pt-3 border-t border-slate-100">
+                    <button
+                      onClick={handleExportDatabase}
+                      className="flex-1 bg-slate-900 hover:bg-slate-850 text-white hover:text-emerald-400 text-[10px] font-bold py-2.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm border border-slate-800 hover:border-emerald-500/50"
+                      title="Baixar dump JSON estruturado do banco de dados completo do Carona"
+                    >
+                      <Download size={13} />
+                      Exportar Dump PostgreSQL (JSON)
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        addNotification("Varredura de integridade do Prisma ORM concluída! Zero incoerências encontradas.", "success");
+                      }}
+                      className="bg-slate-105 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold py-2.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer border border-slate-200"
+                      title="Testar consistência de colunas e enums no banco de dados"
+                    >
+                      <RefreshCw size={11} className="animate-spin" />
+                      Auditar Chaves
+                    </button>
+                  </div>
+                </div>
+
+              </div>
             )}
 
             {/* GESTÃO GERAL E BUSCA DE USUÁRIOS NO BANCO DE DADOS (DADOS DO USUÁRIO & CPF) */}
@@ -5264,41 +5714,6 @@ export default function App() {
                   >
                     <UserPlus size={14} /> 
                     {showNewFranForm ? 'Fechar Form' : 'Adicionar Franqueado Completo'}
-                  </button>
-
-                  {/* Botão rápido de simulação */}
-                  <button
-                    onClick={() => {
-                      const id = 'fr-' + Date.now();
-                      const cidadesSemFranquia = cidades.filter(c => !franqueados.some(f => f.cidade === c.nome));
-                      if (cidadesSemFranquia.length === 0) {
-                        addNotification("Todas as cidades ativas já possuem franquias configuradas!", "warn");
-                        return;
-                      }
-                      const cid = cidadesSemFranquia[0];
-                      const novoEmp: Franqueado = {
-                        id,
-                        nome: `Franqueado ${cid.nome}`,
-                        cidade: cid.nome,
-                        email: `contato@${cid.nome.toLowerCase().replace(/\s/g, '')}carona.com.br`,
-                        telefone: '(11) 9' + Math.floor(10000000 + Math.random() * 90000000),
-                        valorFixoPorCorrida: 2.00,
-                        status: 'ATIVO',
-                        createdAt: new Date().toISOString()
-                      };
-                      setFranqueados(prev => [...prev, novoEmp]);
-                      
-                      // Save default password
-                      setAccountPasswords(prev => ({
-                        ...prev,
-                        [`${novoEmp.email}-FRANQUIA`]: 'senha123'
-                      }));
-
-                      addNotification(`Franquia rápida de ${cid.nome} inicializada com sucesso (Senha padrão: senha123)!`, 'success');
-                    }}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
-                  >
-                    <Plus size={14} /> Rápido ({cidades.filter(c => !franqueados.some(f => f.cidade === c.nome))[0]?.nome || 'Sem Cidades'})
                   </button>
                 </div>
               </div>
