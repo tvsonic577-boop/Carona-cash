@@ -4079,17 +4079,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
-              ) : (
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center">
-                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-800 mx-auto mb-3">
-                    <MapPin size={24} />
-                  </div>
-                  <h3 className="text-sm font-bold text-zinc-950">Pronto para Solicitar Viagem</h3>
-                  <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
-                    Selecione um dos destinos mais procurados ao lado. A tarifa será reajustada instantaneamente baseada nos parâmetros do painel.
-                  </p>
-                </div>
-              )}
+              ) : null}
 
               {/* SIMULATED GPS MAP INTERFACE */}
               <SimulatedMap
