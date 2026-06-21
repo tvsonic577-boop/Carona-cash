@@ -334,6 +334,10 @@ export default function App() {
     localStorage.setItem('cc_passwords', JSON.stringify(accountPasswords));
   }, [accountPasswords]);
 
+  useEffect(() => {
+    setIsProfileMenuOpen(false);
+  }, [activePortal]);
+
   // --- Client Portal Variables ---
   const [clientOrigin, setClientOrigin] = useState<string>('');
   const [clientCustomCoords, setClientCustomCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -348,6 +352,7 @@ export default function App() {
   }, [activeClienteId, clientes]);
 
   const [isEditingClientProfile, setIsEditingClientProfile] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [clientFormNome, setClientFormNome] = useState('');
   const [clientFormEmail, setClientFormEmail] = useState('');
   const [clientFormTelefone, setClientFormTelefone] = useState('');
@@ -2517,7 +2522,7 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-hidden" id="main-content-flow">
         
         {/* PREMIUM HIGH-DENSITY HEADER BAR */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sm:px-8 shrink-0 shadow-sm z-10">
+        <header className="relative h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sm:px-8 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-2 text-slate-400 text-xs italic">
             <Search size={14} className="shrink-0 text-slate-300" />
             <span className="hidden sm:inline">Pesquisar motorista, placa ou cidade...</span>
@@ -2586,6 +2591,38 @@ export default function App() {
               }
 
               if (targetUser) {
+                const isClienteOrMotorista = activePortal === 'CLIENTE' || activePortal === 'MOTORISTA';
+
+                if (isClienteOrMotorista) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                      className={`relative block w-9 h-9 bg-slate-100 border rounded-full overflow-hidden shrink-0 cursor-pointer group flex items-center justify-center shadow-inner transition-transform active:scale-95 ${isProfileMenuOpen ? 'border-emerald-600 ring-2 ring-emerald-500' : 'border-emerald-500'}`}
+                      title="Clique para ver dados e configurações"
+                      id={`header-avatar-${activePortal.toLowerCase()}`}
+                    >
+                      {targetUser.avatar ? (
+                        <img
+                          src={targetUser.avatar}
+                          alt="avatar"
+                          className="w-full h-full object-cover transition duration-150 group-hover:brightness-90"
+                        />
+                      ) : (
+                        <img
+                          referrerPolicy="no-referrer"
+                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${targetUser.nome || "User"}`}
+                          alt="avatar"
+                          className="w-full h-full object-cover transition duration-150 group-hover:brightness-90"
+                        />
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/20 transition duration-150">
+                        <Settings size={11} className="text-white" />
+                      </div>
+                    </button>
+                  );
+                }
+
                 return (
                   <label 
                     className="relative block w-9 h-9 bg-slate-100 border border-emerald-500 rounded-full overflow-hidden shrink-0 cursor-pointer group flex items-center justify-center shadow-inner" 
@@ -2670,6 +2707,624 @@ export default function App() {
             >
               <LogOut size={16} />
             </button>
+
+            {isProfileMenuOpen && (activePortal === 'CLIENTE' || activePortal === 'MOTORISTA') && (
+              <div 
+                className="absolute top-16 right-6 sm:right-8 w-[22rem] sm:w-[26rem] bg-white border border-slate-200 shadow-2xl rounded-2xl p-5 z-50 overflow-y-auto max-h-[80vh] flex flex-col space-y-4 animate-fade-in"
+                id="top-profile-menu-dropdown"
+              >
+                <div className="flex items-center justify-between border-b pb-2.5">
+                  <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
+                    <UserIcon size={16} className="text-emerald-700" />
+                    Painel de Configurações
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileMenuOpen(false)}
+                    className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {activePortal === 'CLIENTE' && (
+                  <div className="space-y-4">
+                    {/* CONTA EM USO */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-150">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">CONTA EM USO</h3>
+                      <div className="flex items-center gap-3">
+                        <label className="relative block w-11 h-11 rounded-full overflow-hidden border border-emerald-500 cursor-pointer group shrink-0" title="Clique para alterar foto">
+                          <img
+                            src={users.find(u => u.id === (clientes.find(c => c.id === activeClienteId)?.userId))?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'}
+                            alt="avatar"
+                            className="w-full h-full object-cover transition duration-200 group-hover:brightness-75"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition duration-200">
+                            <Camera size={12} className="text-white" />
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  const base64String = reader.result as string;
+                                  const clientObj = clientes.find(c => c.id === activeClienteId);
+                                  if (clientObj) {
+                                    setUsers(prev => prev.map(u => {
+                                      if (u.id === clientObj.userId) {
+                                        return { ...u, avatar: base64String };
+                                      }
+                                      return u;
+                                    }));
+                                    addNotification("Sua nova foto de passageiro foi carregada com sucesso!", "success");
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                        <div>
+                          <h4 className="font-bold text-zinc-900 text-xs">
+                            {users.find(u => u.id === (clientes.find(c => c.id === activeClienteId)?.userId))?.nome || 'Passageiro'}
+                          </h4>
+                          <span className="block text-[10px] text-zinc-500">CPF: {clientes.find(c => c.id === activeClienteId)?.cpf}</span>
+                          <span className="inline-block text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full uppercase mt-1">Cliente Ativo</span>
+                        </div>
+                      </div>
+
+                      {/* Quick switch */}
+                      <div className="mt-3.5 border-t border-slate-200 pt-3">
+                        <label className="block text-[9px] text-slate-500 uppercase font-bold mb-1">Trocar Passageiro:</label>
+                        <select
+                          value={activeClienteId}
+                          onChange={(e) => {
+                            setActiveClienteId(e.target.value);
+                            setSelectedDestinationIndex(-1);
+                            setCalculatedTrip(null);
+                            setIsEditingClientProfile(false);
+                          }}
+                          className="w-full text-xs p-1.5 rounded border border-gray-200 bg-white text-zinc-805"
+                        >
+                          {clientes.map(c => {
+                            const userObj = users.find(u => u.id === c.userId);
+                            return (
+                              <option key={c.id} value={c.id}>
+                                {userObj?.nome || 'Usuário'} {userObj?.status === 'BLOQUEADO' ? '[BLOQUEADO]' : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      <div className="mt-3 flex gap-1 items-center">
+                        <button
+                          onClick={() => {
+                            setRegistrationMode('CLIENTE');
+                            setIsProfileMenuOpen(false);
+                          }}
+                          className="text-[10px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 hover:underline hover:cursor-pointer"
+                        >
+                          <Plus size={12} /> Solicitar Novo Cadastro de Cliente
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* MEUS DADOS CADASTRAIS (CLIENTE/PASSAGEIRO) */}
+                    <div className="bg-white p-4 rounded-xl border border-slate-150 space-y-3.5 text-left">
+                      <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                        <h3 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <Settings size={12} className="text-emerald-700 shrink-0" />
+                          Meus Dados Cadastrais
+                        </h3>
+                        {!isEditingClientProfile && (
+                          <button
+                            onClick={() => {
+                              const actClientObj = clientes.find(c => c.id === activeClienteId);
+                              if (actClientObj) {
+                                const uObj = users.find(u => u.id === actClientObj.userId);
+                                if (uObj) {
+                                  setClientFormNome(uObj.nome || '');
+                                  setClientFormEmail(uObj.email || '');
+                                  setClientFormTelefone(uObj.telefone || '');
+                                  const passKey = `${uObj.email.toLowerCase()}-CLIENTE`;
+                                  setClientFormSenha(accountPasswords[passKey] || '');
+                                  setIsEditingClientProfile(true);
+                                }
+                              }
+                            }}
+                            className="text-[10px] text-emerald-700 hover:text-emerald-950 font-bold flex items-center gap-0.5 cursor-pointer hover:underline"
+                          >
+                            Alterar Dados ✎
+                          </button>
+                        )}
+                      </div>
+
+                      {(() => {
+                        const actClientObj = clientes.find(c => c.id === activeClienteId);
+                        if (!actClientObj) return null;
+                        const uObj = users.find(u => u.id === actClientObj.userId);
+                        if (!uObj) return null;
+                        const passKey = `${uObj.email.toLowerCase()}-CLIENTE`;
+                        const curPassword = accountPasswords[passKey] || 'Nenhuma';
+
+                        if (isEditingClientProfile) {
+                          return (
+                            <form onSubmit={(e) => {
+                              e.preventDefault();
+                              const trimmedNome = clientFormNome.trim();
+                              const trimmedEmail = clientFormEmail.trim().toLowerCase();
+                              const trimmedTelefone = clientFormTelefone.trim();
+                              const trimmedSenha = clientFormSenha.trim();
+
+                              if (!trimmedNome || !trimmedEmail || !trimmedSenha) {
+                                addNotification("Nome, E-mail e Senha são de preenchimento obrigatório!", "warn");
+                                return;
+                              }
+
+                              const emailDuplicate = users.find(u => u.id !== uObj.id && u.email.toLowerCase() === trimmedEmail && u.tipo === 'CLIENTE');
+                              if (emailDuplicate) {
+                                addNotification("Este email de Passageiro já está em uso por outro cadastro!", "warn");
+                                return;
+                              }
+
+                              setUsers(prev => prev.map(u => {
+                                if (u.id === uObj.id) {
+                                  return { ...u, nome: trimmedNome, email: trimmedEmail, telefone: trimmedTelefone };
+                                }
+                                return u;
+                              }));
+
+                              setAccountPasswords(prev => {
+                                const next = { ...prev };
+                                delete next[`${uObj.email.toLowerCase()}-CLIENTE`];
+                                next[`${trimmedEmail}-CLIENTE`] = trimmedSenha;
+                                return next;
+                              });
+
+                              if (loggedInEmail.toLowerCase() === uObj.email.toLowerCase()) {
+                                setLoggedInEmail(trimmedEmail);
+                              }
+
+                              setIsEditingClientProfile(false);
+                              addNotification("Seus dados cadastrais foram atualizados com sucesso!", "success");
+                            }} className="space-y-3 text-xs animate-fade-in">
+                              <div>
+                                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Nome Completo</label>
+                                <input
+                                  type="text"
+                                  value={clientFormNome}
+                                  onChange={e => setClientFormNome(e.target.value)}
+                                  className="w-full p-2 border rounded border-gray-200 bg-gray-50 text-xs focus:bg-white focus:outline-none"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">E-mail de Acesso</label>
+                                <input
+                                  type="email"
+                                  value={clientFormEmail}
+                                  onChange={e => setClientFormEmail(e.target.value)}
+                                  className="w-full p-2 border rounded border-gray-200 bg-gray-50 text-xs focus:bg-white focus:outline-none"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Telefone Celular</label>
+                                <input
+                                  type="text"
+                                  value={clientFormTelefone}
+                                  onChange={e => setClientFormTelefone(e.target.value)}
+                                  className="w-full p-2 border rounded border-gray-200 bg-gray-50 text-xs focus:bg-white focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Senha Secreta</label>
+                                <input
+                                  type="text"
+                                  value={clientFormSenha}
+                                  onChange={e => setClientFormSenha(e.target.value)}
+                                  className="w-full p-2 border rounded border-gray-200 bg-gray-50 text-xs focus:bg-white focus:outline-none font-mono"
+                                  required
+                                />
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                <button
+                                  type="submit"
+                                  className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-black cursor-pointer uppercase transition-colors"
+                                >
+                                  Salvar Dados
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEditingClientProfile(false)}
+                                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-[10px] font-bold"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </form>
+                          );
+                        } else {
+                          return (
+                            <div className="text-xs space-y-2 text-slate-600 animate-fade-in">
+                              <div className="flex justify-between border-b border-dashed border-slate-100 pb-1">
+                                <span className="font-semibold text-slate-400">Nome:</span>
+                                <span className="font-bold text-slate-800">{uObj.nome}</span>
+                              </div>
+                              <div className="flex justify-between border-b border-dashed border-slate-100 pb-1">
+                                <span className="font-semibold text-slate-400">E-mail:</span>
+                                <span className="font-semibold text-slate-800">{uObj.email}</span>
+                              </div>
+                              <div className="flex justify-between border-b border-dashed border-slate-100 pb-1">
+                                <span className="font-semibold text-slate-400">Telefone:</span>
+                                <span className="font-mono text-slate-800">{uObj.telefone || 'Não informado'}</span>
+                              </div>
+                              <div className="flex justify-between pb-0.5">
+                                <span className="font-semibold text-slate-400">Senha Secreta:</span>
+                                <span className="font-mono text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">"{curPassword}"</span>
+                              </div>
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {activePortal === 'MOTORISTA' && (
+                  <div className="space-y-4">
+                    {/* CONTA EM USO (MOTORISTA PARCEIRO) */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 relative overflow-hidden">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">MOTORISTA PARCEIRO</h3>
+                      {(() => {
+                        const targetMot = motoristas.find(m => m.id === activeMotoristaId);
+                        const userObj = users.find(u => u.id === targetMot?.userId);
+                        if (!targetMot) return <p className="text-xs text-rose-500">Erro: Motorista não registrado</p>;
+
+                        return (
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-3">
+                              <label className="relative block w-11 h-11 rounded-full overflow-hidden border border-emerald-600 cursor-pointer group shrink-0" title="Clique para alterar foto">
+                                <img
+                                  src={userObj?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'}
+                                  alt="avatar"
+                                  className="w-full h-full object-cover transition duration-200 group-hover:brightness-75"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition duration-200">
+                                  <Camera size={12} className="text-white" />
+                                </div>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        const base64String = reader.result as string;
+                                        if (userObj) {
+                                          setUsers(prev => prev.map(u => {
+                                            if (u.id === userObj.id) {
+                                              return { ...u, avatar: base64String };
+                                            }
+                                            return u;
+                                          }));
+                                          addNotification("Sua nova foto de motorista foi carregada com sucesso!", "success");
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                              </label>
+                              <div>
+                                <h4 className="font-bold text-zinc-900 text-xs">{userObj?.nome}</h4>
+                                <span className="text-[10px] text-zinc-500 font-mono block">CNH: {targetMot.cpf}</span>
+                                <span className="text-[9px] bg-zinc-800 text-white px-2 py-0.5 rounded font-mono font-medium inline-block mt-0.5">
+                                  {targetMot.veiculo.modelo} • {targetMot.veiculo.placa}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Stats and activations */}
+                            <div className="border-t border-slate-200 pt-2.5 space-y-1.5 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-zinc-500">Documentação:</span>
+                                <span className={`font-bold ${targetMot.documentoStatus === 'APROVADO' ? 'text-emerald-700' : 'text-amber-600'}`}>
+                                  {targetMot.documentoStatus === 'APROVADO' ? 'APROVADO' : 'ANÁLISE PENDENTE'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-zinc-500">Licença Mensal:</span>
+                                <span className={`font-bold ${targetMot.isSubscriptionPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                  {targetMot.isSubscriptionPaid ? 'PAGO / ATIVO' : 'PAGAMENTO DA TAXA PENDENTE'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {!targetMot.isSubscriptionPaid && (
+                              <div className="p-2.5 bg-rose-50 rounded-xl border border-rose-100 text-[11px] space-y-1">
+                                <p className="text-rose-700 font-bold">⚠️ Taxa Pendente</p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCheckoutMotoristaId(targetMot.id);
+                                    setShowPixCheckout(true);
+                                    setIsProfileMenuOpen(false);
+                                  }}
+                                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-1 px-2 rounded text-[10px] cursor-pointer"
+                                >
+                                  Pagar Licença Mensal Pix (R$ {config.taxaAtivacaoMotorista.toFixed(2)}) ⚡
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Shift status buttons */}
+                            <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-slate-700">Status:</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (targetMot.documentoStatus !== 'APROVADO') {
+                                    addNotification("Seu cadastro está pendente de autorização pelo Administrador!", "warn");
+                                    return;
+                                  }
+                                  if (!targetMot.isSubscriptionPaid) {
+                                    addNotification("Sua licença mensal/mensalidade está pendente! Efetue o pagamento por Pix.", "warn");
+                                    return;
+                                  }
+                                  setMotoristas(prev => prev.map(m => {
+                                    if (m.id === targetMot.id) {
+                                      const nextStatus = !m.isOnline;
+                                      addNotification(
+                                        nextStatus 
+                                          ? "Você mudou seu status para ONLINE!" 
+                                          : "Você agora está OFFLINE!",
+                                        nextStatus ? "success" : "info"
+                                      );
+                                      return { ...m, isOnline: nextStatus };
+                                    }
+                                    return m;
+                                  }));
+                                }}
+                                className={`py-1 px-2 rounded-lg text-[10px] font-bold transition-all border cursor-pointer ${
+                                  targetMot.isOnline
+                                    ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
+                                }`}
+                              >
+                                {targetMot.isOnline ? '🔇 Ficar Offline' : '🟢 Ficar Online'}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* MEUS DADOS CADASTRAIS (MOTORISTA) */}
+                    <div className="bg-white p-4 rounded-xl border border-slate-150 text-left">
+                      {(() => {
+                        const targetMot = motoristas.find(m => m.id === activeMotoristaId);
+                        const userObj = users.find(u => u.id === targetMot?.userId);
+                        if (!targetMot || !userObj) return null;
+
+                        const passKey = `${userObj.email.toLowerCase()}-MOTORISTA`;
+                        const userPassword = accountPasswords[passKey] || '';
+
+                        if (!isEditingDriverProfile) {
+                          return (
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center border-b pb-1.5 border-slate-100">
+                                <span className="font-extrabold text-[10px] text-zinc-400 uppercase tracking-wider block">
+                                  Meus Dados Cadastrais
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDriverFormNome(userObj.nome);
+                                    setDriverFormTelefone(userObj.telefone || '');
+                                    setDriverFormSenha(userPassword);
+                                    setDriverFormCpf(targetMot.cpf);
+                                    setDriverFormVeiculoMarca(targetMot.veiculo.marca);
+                                    setDriverFormVeiculoModelo(targetMot.veiculo.modelo);
+                                    setDriverFormVeiculoCor(targetMot.veiculo.cor);
+                                    setDriverFormVeiculoPlaca(targetMot.veiculo.placa);
+                                    setIsEditingDriverProfile(true);
+                                  }}
+                                  className="px-2 py-0.5 text-[10px] font-bold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 border rounded-md cursor-pointer shrink-0"
+                                >
+                                  ✎ AlterarDados
+                                </button>
+                              </div>
+
+                              <div className="space-y-1.5 text-xs text-slate-700">
+                                <div className="flex justify-between border-b border-dashed border-slate-100 pb-1">
+                                  <span className="text-slate-400">Nome:</span>
+                                  <span className="font-bold text-slate-800">{userObj.nome}</span>
+                                </div>
+                                <div className="flex justify-between border-b border-dashed border-slate-100 pb-1">
+                                  <span className="text-slate-400">E-mail:</span>
+                                  <span className="font-mono text-slate-800">{userObj.email}</span>
+                                </div>
+                                <div className="flex justify-between border-b border-dashed border-slate-100 pb-1">
+                                  <span className="text-slate-400">Telefone:</span>
+                                  <span className="font-semibold text-slate-808">{userObj.telefone || 'Não informado'}</span>
+                                </div>
+                                <div className="flex justify-between border-b border-dashed border-slate-100 pb-1">
+                                  <span className="text-slate-400">CNH:</span>
+                                  <span className="font-mono text-slate-805">{targetMot.cpf}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-slate-400">Veículo:</span>
+                                  <span className="font-semibold text-slate-808">{targetMot.veiculo.marca} {targetMot.veiculo.modelo} ({targetMot.veiculo.cor})</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              const trimmedNome = driverFormNome.trim();
+                              const trimmedTelefone = driverFormTelefone.trim();
+                              const trimmedSenha = driverFormSenha.trim();
+                              const trimmedCpf = driverFormCpf.trim();
+                              const trimmedVeiculoMarca = driverFormVeiculoMarca.trim();
+                              const trimmedVeiculoModelo = driverFormVeiculoModelo.trim();
+                              const trimmedVeiculoCor = driverFormVeiculoCor.trim();
+                              const trimmedVeiculoPlaca = driverFormVeiculoPlaca.trim().toUpperCase();
+
+                              if (!trimmedNome || !trimmedSenha) {
+                                addNotification("Nome Completo e Senha Secreta são obrigatórios!", "warn");
+                                return;
+                              }
+
+                              setUsers(prev => prev.map(u => {
+                                  if (u.id === userObj.id) {
+                                    return { ...u, nome: trimmedNome, telefone: trimmedTelefone };
+                                  }
+                                  return u;
+                                }));
+
+                              setAccountPasswords(prev => ({
+                                ...prev,
+                                [passKey]: trimmedSenha
+                              }));
+
+                              setMotoristas(prev => prev.map(m => {
+                                if (m.id === targetMot.id) {
+                                  return {
+                                    ...m,
+                                    cpf: trimmedCpf,
+                                    veiculo: {
+                                      ...m.veiculo,
+                                      marca: trimmedVeiculoMarca || m.veiculo.marca,
+                                      modelo: trimmedVeiculoModelo || m.veiculo.modelo,
+                                      cor: trimmedVeiculoCor || m.veiculo.cor,
+                                      placa: trimmedVeiculoPlaca || m.veiculo.placa
+                                    }
+                                  };
+                                }
+                                return m;
+                              }));
+
+                              setIsEditingDriverProfile(false);
+                              addNotification("Seus dados cadastrais salvos com sucesso!", "success");
+                            }}
+                            className="space-y-3 text-xs"
+                          >
+                            <div className="flex justify-between items-center border-b pb-1.5 border-slate-100">
+                              <span className="font-extrabold text-[10px] text-emerald-800 uppercase tracking-wider block">
+                                ⚙️ Alterar Cadastro
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingDriverProfile(false)}
+                                className="text-slate-400 hover:text-slate-600 font-bold"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div>
+                                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Nome Completo</label>
+                                <input
+                                  type="text"
+                                  value={driverFormNome}
+                                  onChange={e => setDriverFormNome(e.target.value)}
+                                  className="w-full p-2 border rounded bg-white text-zinc-800 text-xs focus:outline-none"
+                                  required
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Senha</label>
+                                  <input
+                                    type="text"
+                                    value={driverFormSenha}
+                                    onChange={e => setDriverFormSenha(e.target.value)}
+                                    className="w-full p-2 border rounded bg-white text-zinc-800 text-xs font-mono focus:outline-none"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Telefone</label>
+                                  <input
+                                    type="text"
+                                    value={driverFormTelefone}
+                                    onChange={e => setDriverFormTelefone(e.target.value)}
+                                    className="w-full p-2 border rounded bg-white text-zinc-800 text-xs focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">CNH (CPF)</label>
+                                <input
+                                  type="text"
+                                  value={driverFormCpf}
+                                  onChange={e => setDriverFormCpf(e.target.value)}
+                                  className="w-full p-2 border rounded bg-white text-zinc-800 text-xs font-mono focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="p-2 bg-slate-50 rounded-lg space-y-1.5">
+                                <span className="text-[8px] uppercase font-bold text-slate-500 block">Veículo</span>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <input
+                                    placeholder="Marca"
+                                    type="text"
+                                    value={driverFormVeiculoMarca}
+                                    onChange={e => setDriverFormVeiculoMarca(e.target.value)}
+                                    className="p-1 border rounded text-[10px] focus:outline-none bg-white"
+                                  />
+                                  <input
+                                    placeholder="Modelo"
+                                    type="text"
+                                    value={driverFormVeiculoModelo}
+                                    onChange={e => setDriverFormVeiculoModelo(e.target.value)}
+                                    className="p-1 border rounded text-[10px] focus:outline-none bg-white"
+                                  />
+                                  <input
+                                    placeholder="Cor"
+                                    type="text"
+                                    value={driverFormVeiculoCor}
+                                    onChange={e => setDriverFormVeiculoCor(e.target.value)}
+                                    className="p-1 border rounded text-[10px] focus:outline-none bg-white"
+                                  />
+                                  <input
+                                    placeholder="Placa"
+                                    type="text"
+                                    value={driverFormVeiculoPlaca}
+                                    onChange={e => setDriverFormVeiculoPlaca(e.target.value.toUpperCase())}
+                                    className="p-1 border rounded font-mono text-[10px] focus:outline-none bg-white"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="submit"
+                              className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold cursor-pointer transition"
+                            >
+                              Salvar Alterações
+                            </button>
+                          </form>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </header>
 
@@ -3081,294 +3736,6 @@ export default function App() {
             {/* Sidebar Controls to switch active client */}
             <div className="lg:col-span-4 space-y-6">
               
-              {/* Profile Card */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-700"></div>
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">CONTA EM USO</h3>
-                
-                <div className="flex items-center gap-3">
-                  <label className="relative block w-12 h-12 rounded-full overflow-hidden border border-emerald-500 cursor-pointer group shrink-0" title="Clique para alterar foto">
-                    <img
-                      src={users.find(u => u.id === (clientes.find(c => c.id === activeClienteId)?.userId))?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'}
-                      alt="avatar"
-                      className="w-full h-full object-cover transition duration-200 group-hover:brightness-75"
-                      id="client-avatar-img"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition duration-200">
-                      <Camera size={14} className="text-white" />
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            const base64String = reader.result as string;
-                            const clientObj = clientes.find(c => c.id === activeClienteId);
-                            if (clientObj) {
-                              setUsers(prev => prev.map(u => {
-                                if (u.id === clientObj.userId) {
-                                  return { ...u, avatar: base64String };
-                                }
-                                return u;
-                              }));
-                              addNotification("Sua nova foto de passageiro foi carregada com sucesso!", "success");
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                  </label>
-                  <div>
-                    <h4 className="font-bold text-zinc-900" id="client-name">
-                      {users.find(u => u.id === (clientes.find(c => c.id === activeClienteId)?.userId))?.nome || 'Passageiro'}
-                    </h4>
-                    <span className="text-[11px] text-zinc-500 font-medium">CPF: {clientes.find(c => c.id === activeClienteId)?.cpf}</span>
-                    <span className="block text-[10px] text-emerald-700 font-semibold uppercase tracking-widest mt-0.5">Cliente Ativo</span>
-                  </div>
-                </div>
-
-                {/* Simulated quick passenger switch */}
-                <div className="mt-4 border-t border-gray-100 pt-3">
-                  <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Trocar Passageiro:</label>
-                  <select
-                    value={activeClienteId}
-                    onChange={(e) => {
-                      setActiveClienteId(e.target.value);
-                      setSelectedDestinationIndex(-1);
-                      setCalculatedTrip(null);
-                      setIsEditingClientProfile(false);
-                    }}
-                    className="w-full text-xs p-1.5 rounded border border-gray-200 bg-white"
-                  >
-                    {clientes.map(c => {
-                      const userObj = users.find(u => u.id === c.userId);
-                      return (
-                        <option key={c.id} value={c.id}>
-                          {userObj?.nome || 'Usuário'} {userObj?.status === 'BLOQUEADO' ? '[BLOQUEADO]' : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                <div className="mt-4 flex gap-1 items-center">
-                  <button
-                    onClick={() => setRegistrationMode('CLIENTE')}
-                    className="text-xs text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 hover:underline hover:cursor-pointer"
-                  >
-                    <Plus size={14} /> Solicitar Novo Cadastro de Cliente
-                  </button>
-                </div>
-              </div>
-
-              {/* DADOS DO CLIENTE (Auto-Management Panel) */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4" id="cliente-dados-alterar-card">
-                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <Settings size={14} className="text-emerald-700 shrink-0" />
-                    Meus Dados Cadastrais
-                  </h3>
-                  {!isEditingClientProfile && (
-                    <button
-                      onClick={() => {
-                        const actClientObj = clientes.find(c => c.id === activeClienteId);
-                        if (actClientObj) {
-                          const uObj = users.find(u => u.id === actClientObj.userId);
-                          if (uObj) {
-                            setClientFormNome(uObj.nome || '');
-                            setClientFormEmail(uObj.email || '');
-                            setClientFormTelefone(uObj.telefone || '');
-                            const passKey = `${uObj.email.toLowerCase()}-CLIENTE`;
-                            setClientFormSenha(accountPasswords[passKey] || '');
-                            setIsEditingClientProfile(true);
-                          }
-                        }
-                      }}
-                      className="text-[11px] text-emerald-700 hover:text-emerald-950 font-bold flex items-center gap-0.5 cursor-pointer hover:underline"
-                    >
-                      Alterar Dados ✎
-                    </button>
-                  )}
-                </div>
-
-                {(() => {
-                  const actClientObj = clientes.find(c => c.id === activeClienteId);
-                  if (!actClientObj) return null;
-                  const uObj = users.find(u => u.id === actClientObj.userId);
-                  if (!uObj) return null;
-                  const passKey = `${uObj.email.toLowerCase()}-CLIENTE`;
-                  const curPassword = accountPasswords[passKey] || 'Nenhuma';
-
-                  if (isEditingClientProfile) {
-                    return (
-                      <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const trimmedNome = clientFormNome.trim();
-                        const trimmedEmail = clientFormEmail.trim().toLowerCase();
-                        const trimmedTelefone = clientFormTelefone.trim();
-                        const trimmedSenha = clientFormSenha.trim();
-
-                        if (!trimmedNome || !trimmedEmail || !trimmedSenha) {
-                          addNotification("Nome, E-mail e Senha são de preenchimento obrigatório!", "warn");
-                          return;
-                        }
-
-                        // Duplicate email validation (among active CLIENTE users)
-                        const emailDuplicate = users.find(u => u.id !== uObj.id && u.email.toLowerCase() === trimmedEmail && u.tipo === 'CLIENTE');
-                        if (emailDuplicate) {
-                          addNotification("Este email de Passageiro já está em uso por outro cadastro!", "warn");
-                          return;
-                        }
-
-                        // Perform update
-                        // 1. Update users list
-                        setUsers(prev => prev.map(u => {
-                          if (u.id === uObj.id) {
-                            return { ...u, nome: trimmedNome, email: trimmedEmail, telefone: trimmedTelefone };
-                          }
-                          return u;
-                        }));
-
-                        // 2. Update accountPasswords mapping (remove old and set new key)
-                        setAccountPasswords(prev => {
-                          const next = { ...prev };
-                          delete next[`${uObj.email.toLowerCase()}-CLIENTE`];
-                          next[`${trimmedEmail}-CLIENTE`] = trimmedSenha;
-                          return next;
-                        });
-
-                        // 3. Keep loggedInEmail state updated if the user currently logged in is changing their own login!
-                        if (loggedInEmail.toLowerCase() === uObj.email.toLowerCase()) {
-                          setLoggedInEmail(trimmedEmail);
-                        }
-
-                        setIsEditingClientProfile(false);
-                        addNotification("Seus dados cadastrais foram atualizados com sucesso!", "success");
-                      }} className="space-y-3.5 text-xs text-left animate-fade-in">
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Foto de Perfil (Clique para Carregar)</label>
-                          <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                            <img
-                              src={users.find(u => u.id === uObj.id)?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'}
-                              alt="avatar preview"
-                              className="w-12 h-12 rounded-full object-cover border-2 border-emerald-500 shadow-sm shrink-0"
-                            />
-                            <div className="space-y-1">
-                              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-[11px] font-bold rounded-lg cursor-pointer transition shadow-sm">
-                                📷 Carregar Foto
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      const reader = new FileReader();
-                                      reader.onloadend = () => {
-                                        const base64String = reader.result as string;
-                                        setUsers(prev => prev.map(u => {
-                                          if (u.id === uObj.id) {
-                                            return { ...u, avatar: base64String };
-                                          }
-                                          return u;
-                                        }));
-                                        addNotification("Sua foto de perfil foi atualizada com sucesso!", "success");
-                                      };
-                                      reader.readAsDataURL(file);
-                                    }
-                                  }}
-                                />
-                              </label>
-                              <p className="text-[9px] text-slate-400">Suporta JPG, PNG ou GIF da galeria do celular</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Nome Completo</label>
-                          <input
-                            type="text"
-                            value={clientFormNome}
-                            onChange={e => setClientFormNome(e.target.value)}
-                            className="w-full p-2 border rounded border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">E-mail de Acesso</label>
-                          <input
-                            type="email"
-                            value={clientFormEmail}
-                            onChange={e => setClientFormEmail(e.target.value)}
-                            className="w-full p-2 border rounded border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Telefone Celular</label>
-                          <input
-                            type="text"
-                            value={clientFormTelefone}
-                            onChange={e => setClientFormTelefone(e.target.value)}
-                            className="w-full p-2 border rounded border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Senha Secreta</label>
-                          <input
-                            type="text"
-                            value={clientFormSenha}
-                            onChange={e => setClientFormSenha(e.target.value)}
-                            className="w-full p-2 border rounded border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
-                            required
-                          />
-                        </div>
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            type="submit"
-                            className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-black cursor-pointer transition-colors uppercase tracking-wider"
-                          >
-                            Salvar Dados
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingClientProfile(false)}
-                            className="px-3 py-2 bg-slate-150 hover:bg-slate-200 text-slate-600 rounded text-[11px] font-bold cursor-pointer"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </form>
-                    );
-                  } else {
-                    return (
-                      <div className="text-xs space-y-2.5 text-slate-600 animate-fade-in">
-                        <div className="flex justify-between border-b border-dashed border-slate-100 pb-1.5">
-                          <span className="font-semibold text-slate-400">Nome:</span>
-                          <span className="font-bold text-slate-800">{uObj.nome}</span>
-                        </div>
-                        <div className="flex justify-between border-b border-dashed border-slate-100 pb-1.5">
-                          <span className="font-semibold text-slate-400">E-mail:</span>
-                          <span className="font-semibold text-slate-800">{uObj.email}</span>
-                        </div>
-                        <div className="flex justify-between border-b border-dashed border-slate-100 pb-1.5">
-                          <span className="font-semibold text-slate-400">Telefone:</span>
-                          <span className="font-mono text-slate-800">{uObj.telefone || 'Não informado'}</span>
-                        </div>
-                        <div className="flex justify-between pb-0.5">
-                          <span className="font-semibold text-slate-400">Senha Secreta:</span>
-                          <span className="font-mono text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">"{curPassword}"</span>
-                        </div>
-                      </div>
-                    );
-                  }
-                })()}
-              </div>
-
               {/* Ride Request Box */}
               <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative">
                 <div className="mb-6 text-center border-b border-gray-150 pb-4">
@@ -3811,460 +4178,8 @@ export default function App() {
         {activePortal === 'MOTORISTA' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8" id="driver-view-container">
             
-            {/* Left Control Bar */}
-            <div className="lg:col-span-4 space-y-6">
-              
-              {/* Driver Account info Card */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-zinc-900"></div>
-                
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">MOTORISTA PARCEIRO</h3>
-                
-                {(() => {
-                  const targetMot = motoristas.find(m => m.id === activeMotoristaId);
-                  const userObj = users.find(u => u.id === targetMot?.userId);
-                  if (!targetMot) return <p className="text-xs text-rose-500">Erro: Motorista não registrado</p>;
-
-                  return (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <label className="relative block w-12 h-12 rounded-full overflow-hidden border border-emerald-600 cursor-pointer group shrink-0" title="Clique para alterar foto">
-                          <img
-                            src={userObj?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'}
-                            alt="avatar"
-                            className="w-full h-full object-cover transition duration-200 group-hover:brightness-75"
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition duration-200">
-                            <Camera size={14} className="text-white" />
-                          </div>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  const base64String = reader.result as string;
-                                  if (userObj) {
-                                    setUsers(prev => prev.map(u => {
-                                      if (u.id === userObj.id) {
-                                        return { ...u, avatar: base64String };
-                                      }
-                                      return u;
-                                    }));
-                                    addNotification("Sua nova foto de motorista foi carregada com sucesso!", "success");
-                                  }
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                        </label>
-                        <div>
-                          <h4 className="font-bold text-zinc-900">{userObj?.nome}</h4>
-                          <span className="text-[10px] text-zinc-500 font-mono block">CNH: {targetMot.cpf}</span>
-                          <span className="text-[10px] bg-zinc-800 text-white px-2 py-0.5 rounded font-mono font-medium inline-block mt-1">
-                            {targetMot.veiculo.modelo} • {targetMot.veiculo.placa}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* STATS STATUS IN CONTEXT OF REQUIRED ACTIVATIONS AND REVENUE PAYMENT */}
-                      <div className="border-t border-gray-100 pt-3 space-y-2">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-zinc-500">Aprovação de Documentos:</span>
-                          <span className={`font-bold ${
-                            targetMot.documentoStatus === 'APROVADO' ? 'text-emerald-700' : targetMot.documentoStatus === 'PENDENTE' ? 'text-amber-600' : 'text-rose-600'
-                          }`}>
-                            {targetMot.documentoStatus === 'APROVADO' ? 'APROVADO' : targetMot.documentoStatus === 'PENDENTE' ? 'ANÁLISE PENDENTE' : 'RECURSO REJEITADO'}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between text-xs">
-                          <span className="text-zinc-500">Licença Mensal Status:</span>
-                          <span className={`font-bold ${
-                            targetMot.isSubscriptionPaid ? 'text-emerald-700' : 'text-rose-600'
-                          }`}>
-                            {targetMot.isSubscriptionPaid ? 'PAGO / ATIVO' : 'PAGAMENTO DA TAXA PENDENTE'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* EXPLICIT LICENSE BILLING SYSTEM FOR ACTIVE REVENUE CHECKS */}
-                      {!targetMot.isSubscriptionPaid && (
-                        <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-100 text-xs">
-                          <div className="flex gap-2 text-rose-900 font-bold">
-                            <ShieldAlert size={16} className="shrink-0 text-rose-600" />
-                            <span>Pague para começar a dirigir!</span>
-                          </div>
-                          <p className="text-[11px] text-rose-700 mt-1">
-                            Sua licença mensal do Carona precisa ser ativada por Pix para liberar o recebimento de corridas locais.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setCheckoutMotoristaId(targetMot.id);
-                              setShowPixCheckout(true);
-                            }}
-                            className="mt-3 w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-1.5 px-3 rounded-lg text-xs cursor-pointer"
-                          >
-                            Pagar Licença Mensal (R$ {config.taxaAtivacaoMotorista.toFixed(2)}) ⚡
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Real shift toggle simulated */}
-                      <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-700">Disp. de Atendimento:</span>
-                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 ${
-                            targetMot.isOnline 
-                              ? 'bg-emerald-100 text-emerald-800 animate-pulse' 
-                              : 'bg-rose-50 text-rose-800'
-                          }`}>
-                            <span className={`h-2 w-2 rounded-full ${targetMot.isOnline ? 'bg-emerald-600' : 'bg-rose-500'}`}></span>
-                            {targetMot.isOnline ? 'Online' : 'Offline'}
-                          </span>
-                        </div>
-
-                        {targetMot.documentoStatus !== 'APROVADO' && (
-                          <div className="p-2.5 bg-amber-50 text-[10px] text-amber-800 border border-amber-200 rounded-lg flex flex-col gap-1">
-                            <span className="font-bold uppercase tracking-wider">⚠️ Documentação Pendente</span>
-                            <span>Sua CNH ou veículo estão em análise. Você precisa ter seus documentos aprovados para poder ficar <strong>ONLINE</strong>.</span>
-                          </div>
-                        )}
-
-                        {!targetMot.isSubscriptionPaid && (
-                          <div className="p-2.5 bg-rose-50 text-[10px] text-rose-800 border border-rose-200 rounded-lg flex flex-col gap-1">
-                            <span className="font-bold uppercase tracking-wider">⚠️ Mensalidade Suspensa</span>
-                            <span>Sua licença mensal precisa estar ativa para manter sua conta liberada. Realize o pagamento por Pix acima para poder ficar <strong>ONLINE</strong>.</span>
-                          </div>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (targetMot.documentoStatus !== 'APROVADO') {
-                              addNotification("Seu cadastro está pendente de autorização pelo Administrador! Você só poderá ficar ONLINE após a liberação dos seus documentos no painel administrativo.", "warn");
-                              return;
-                            }
-                            if (!targetMot.isSubscriptionPaid) {
-                              addNotification("Sua licença mensal/mensalidade está pendente! Efetue o pagamento por Pix para liberar seu status ONLINE.", "warn");
-                              return;
-                            }
-                            setMotoristas(prev => prev.map(m => {
-                              if (m.id === targetMot.id) {
-                                const nextStatus = !m.isOnline;
-                                addNotification(
-                                  nextStatus 
-                                    ? "Você mudou seu status para ONLINE! Agora você começará a receber solicitações de corrida." 
-                                    : "Você agora está OFFLINE! Não receberá novas chamadas de viagens no seu painel.",
-                                  nextStatus ? "success" : "info"
-                                );
-                                return { ...m, isOnline: nextStatus };
-                              }
-                              return m;
-                            }));
-                          }}
-                          className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                            (targetMot.documentoStatus !== 'APROVADO' || !targetMot.isSubscriptionPaid)
-                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                              : targetMot.isOnline
-                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                                : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
-                          }`}
-                          disabled={targetMot.documentoStatus !== 'APROVADO' || !targetMot.isSubscriptionPaid}
-                        >
-                          {targetMot.isOnline ? '🔇 Ficar Offline (Folga)' : '🟢 Ficar Online (Trabalhar)'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* MEUS DADOS CADASTRAIS (MOTORISTA) CARD */}
-              {(() => {
-                const targetMot = motoristas.find(m => m.id === activeMotoristaId);
-                const userObj = users.find(u => u.id === targetMot?.userId);
-                if (!targetMot || !userObj) return null;
-
-                const passKey = `${userObj.email.toLowerCase()}-MOTORISTA`;
-                const userPassword = accountPasswords[passKey] || '';
-
-                if (!isEditingDriverProfile) {
-                  return (
-                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-                      <div className="flex justify-between items-center border-b pb-2">
-                        <span className="font-extrabold text-[10px] text-zinc-400 uppercase tracking-wider block">
-                          Dados Cadastrais do Motorista
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDriverFormNome(userObj.nome);
-                            setDriverFormTelefone(userObj.telefone || '');
-                            setDriverFormSenha(userPassword);
-                            setDriverFormCpf(targetMot.cpf);
-                            setDriverFormVeiculoMarca(targetMot.veiculo.marca);
-                            setDriverFormVeiculoModelo(targetMot.veiculo.modelo);
-                            setDriverFormVeiculoCor(targetMot.veiculo.cor);
-                            setDriverFormVeiculoPlaca(targetMot.veiculo.placa);
-                            setIsEditingDriverProfile(true);
-                          }}
-                          className="px-2.5 py-1 text-[11px] font-bold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 hover:border-zinc-300 rounded-lg cursor-pointer transition flex items-center gap-1 shrink-0"
-                        >
-                          ✎ Alterar Dados
-                        </button>
-                      </div>
-
-                      <div className="space-y-2 text-xs text-slate-700">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Nome:</span>
-                          <span className="font-bold text-slate-800">{userObj.nome}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">E-mail:</span>
-                          <span className="font-mono text-slate-800">{userObj.email}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Telefone:</span>
-                          <span className="font-semibold text-slate-800">{userObj.telefone || 'Não informado'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Senha:</span>
-                          <span className="font-mono text-slate-800">••••••••</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">CNH (CPF):</span>
-                          <span className="font-mono text-slate-800">{targetMot.cpf}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Veículo:</span>
-                          <span className="font-semibold text-slate-800">{targetMot.veiculo.marca} {targetMot.veiculo.modelo} ({targetMot.veiculo.cor})</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Placa:</span>
-                          <span className="font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-800">{targetMot.veiculo.placa}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const trimmedNome = driverFormNome.trim();
-                      const trimmedTelefone = driverFormTelefone.trim();
-                      const trimmedSenha = driverFormSenha.trim();
-                      const trimmedCpf = driverFormCpf.trim();
-                      const trimmedVeiculoMarca = driverFormVeiculoMarca.trim();
-                      const trimmedVeiculoModelo = driverFormVeiculoModelo.trim();
-                      const trimmedVeiculoCor = driverFormVeiculoCor.trim();
-                      const trimmedVeiculoPlaca = driverFormVeiculoPlaca.trim().toUpperCase();
-
-                      if (!trimmedNome || !trimmedSenha) {
-                        addNotification("Nome Completo e Senha Secreta são de preenchimento obrigatório!", "warn");
-                        return;
-                      }
-
-                      // 1. Update core user
-                      setUsers(prev => prev.map(u => {
-                        if (u.id === userObj.id) {
-                          return { ...u, nome: trimmedNome, telefone: trimmedTelefone };
-                        }
-                        return u;
-                      }));
-
-                      // 2. Update password
-                      setAccountPasswords(prev => ({
-                        ...prev,
-                        [passKey]: trimmedSenha
-                      }));
-
-                      // 3. Update motorista details
-                      setMotoristas(prev => prev.map(m => {
-                        if (m.id === targetMot.id) {
-                          return {
-                            ...m,
-                            cpf: trimmedCpf,
-                            veiculo: {
-                              ...m.veiculo,
-                              marca: trimmedVeiculoMarca || m.veiculo.marca,
-                              modelo: trimmedVeiculoModelo || m.veiculo.modelo,
-                              cor: trimmedVeiculoCor || m.veiculo.cor,
-                              placa: trimmedVeiculoPlaca || m.veiculo.placa
-                            }
-                          };
-                        }
-                        return m;
-                      }));
-
-                      setIsEditingDriverProfile(false);
-                      addNotification("Seus dados cadastrais de motorista foram salvos com sucesso!", "success");
-                    }}
-                    className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-3.5 text-xs text-left"
-                  >
-                    <div className="flex justify-between items-center border-b pb-2">
-                      <span className="font-extrabold text-[10px] text-emerald-800 uppercase tracking-wider block">
-                        ⚙️ Alterar Cadastro
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingDriverProfile(false)}
-                        className="text-slate-400 hover:text-slate-600 font-bold"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {/* PROFILE PICTURE LOADER INSIDE UPDATE cadastro BLOCK */}
-                      <div>
-                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Foto de Perfil do Motorista</label>
-                        <div className="flex items-center gap-2.5 bg-slate-50 p-2 rounded-xl border">
-                          <img
-                            src={userObj.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'}
-                            alt="preview"
-                            className="w-10 h-10 rounded-full object-cover border"
-                          />
-                          <div>
-                            <label className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-[10px] font-bold cursor-pointer transition">
-                              Carregar Foto 📷
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      const base64String = reader.result as string;
-                                      setUsers(prev => prev.map(u => {
-                                        if (u.id === userObj.id) {
-                                          return { ...u, avatar: base64String };
-                                        }
-                                        return u;
-                                      }));
-                                      addNotification("Sua foto de perfil foi atualizada!", "success");
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Nome Completo</label>
-                        <input
-                          type="text"
-                          value={driverFormNome}
-                          onChange={e => setDriverFormNome(e.target.value)}
-                          className="w-full p-2 border rounded bg-white text-zinc-800"
-                          required
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Senha Secreta</label>
-                          <input
-                            type="text"
-                            value={driverFormSenha}
-                            onChange={e => setDriverFormSenha(e.target.value)}
-                            className="w-full p-2 border rounded bg-white text-zinc-800 font-mono"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Telefone</label>
-                          <input
-                            type="text"
-                            value={driverFormTelefone}
-                            onChange={e => setDriverFormTelefone(e.target.value)}
-                            className="w-full p-2 border rounded bg-white text-zinc-800"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">CNH (CPF)</label>
-                        <input
-                          type="text"
-                          value={driverFormCpf}
-                          onChange={e => setDriverFormCpf(e.target.value)}
-                          className="w-full p-2 border rounded bg-white text-zinc-800 font-mono"
-                        />
-                      </div>
-
-                      <div className="p-2.5 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-2">
-                        <span className="font-extrabold text-[8px] text-emerald-850 uppercase tracking-wider block">
-                          🚗 Detalhes do Veículo
-                        </span>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-[8px] uppercase font-bold text-slate-500">Marca</label>
-                            <input
-                              type="text"
-                              value={driverFormVeiculoMarca}
-                              onChange={e => setDriverFormVeiculoMarca(e.target.value)}
-                              className="w-full p-1 border rounded bg-white text-[10px]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[8px] uppercase font-bold text-slate-500">Modelo</label>
-                            <input
-                              type="text"
-                              value={driverFormVeiculoModelo}
-                              onChange={e => setDriverFormVeiculoModelo(e.target.value)}
-                              className="w-full p-1 border rounded bg-white text-[10px]"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-[8px] uppercase font-bold text-slate-500">Cor</label>
-                            <input
-                              type="text"
-                              value={driverFormVeiculoCor}
-                              onChange={e => setDriverFormVeiculoCor(e.target.value)}
-                              className="w-full p-1 border rounded bg-white text-[10px]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[8px] uppercase font-bold text-slate-500">Placa</label>
-                            <input
-                              type="text"
-                              value={driverFormVeiculoPlaca}
-                              onChange={e => setDriverFormVeiculoPlaca(e.target.value.toUpperCase())}
-                              className="w-full p-1 border rounded bg-white font-mono text-[10px]"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition shadow-sm cursor-pointer border-0"
-                    >
-                      ✓ Salvar Cadastro
-                    </button>
-                  </form>
-                );
-              })()}
-
-            </div>
-
-            {/* Simulated Shift Terminal Monitor / Driver Center on the right */}
-            <div className="lg:col-span-8 space-y-6">
+            {/* Simulated Shift Terminal Monitor / Driver Center */}
+            <div className="lg:col-span-12 space-y-6">
               
               <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between mb-4 border-b pb-3">
